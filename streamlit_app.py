@@ -50,6 +50,19 @@ def load_data_from_github():
         st.session_state.df_enso = pd.read_csv(f"{GITHUB_BASE_URL}ENSO_1950-2023.csv", sep=';', encoding='latin-1')
         st.session_state.df_enso.columns = st.session_state.df_enso.columns.str.strip()
         
+        # Lógica más robusta para encontrar y renombrar columnas
+        enso_cols = st.session_state.df_enso.columns
+        col_map = {}
+        for col in enso_cols:
+            if 'año' in col.lower():
+                col_map[col] = 'año'
+            elif 'mes' in col.lower():
+                col_map[col] = 'mes'
+            elif 'enso' in col.lower():
+                col_map[col] = 'ENOS'
+        
+        st.session_state.df_enso = st.session_state.df_enso.rename(columns=col_map)
+        
         if 'ENOS' in st.session_state.df_enso.columns:
             st.session_state.df_enso['ENOS'] = st.session_state.df_enso['ENOS'].str.strip()
         else:
@@ -144,26 +157,35 @@ with st.sidebar:
         # Carga de datos ENSO
         uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
         csv_sep_enso = st.text_input("Separador de datos ENSO", value=';')
-        # Validar que el separador no esté vacío
         if not csv_sep_enso:
             csv_sep_enso = ';'
             st.warning("El separador para el archivo ENSO estaba vacío. Se ha usado ';' por defecto.")
 
         if uploaded_enso:
             try:
-                st.session_state.df_enso = pd.read_csv(uploaded_enso, sep=csv_sep_enso, encoding='latin-1')
-                st.session_state.df_enso.columns = st.session_state.df_enso.columns.str.strip()
+                df_enso_raw = pd.read_csv(uploaded_enso, sep=csv_sep_enso, encoding='latin-1')
+                df_enso_raw.columns = df_enso_raw.columns.str.strip()
                 
-                # --- Lógica corregida para el archivo ENSO ---
-                # Verificar si las columnas esenciales existen en el DataFrame
-                required_cols = ['Año', 'mes', 'ENOS']
+                # --- Lógica más robusta para encontrar y renombrar columnas ---
+                col_map = {}
+                for col in df_enso_raw.columns:
+                    if 'año' in col.lower():
+                        col_map[col] = 'año'
+                    elif 'mes' in col.lower():
+                        col_map[col] = 'mes'
+                    elif 'enso' in col.lower():
+                        col_map[col] = 'ENOS'
+                
+                # Renombrar las columnas encontradas
+                st.session_state.df_enso = df_enso_raw.rename(columns=col_map)
+
+                # Verificar si las columnas esenciales existen después de renombrar
+                required_cols = ['año', 'mes', 'ENOS']
                 if all(col in st.session_state.df_enso.columns for col in required_cols):
-                    # Convertir las columnas de año y mes a tipo int para su correcto manejo
-                    st.session_state.df_enso['año'] = st.session_state.df_enso['Año'].astype(int)
+                    # Convertir las columnas a tipo int para su correcto manejo
+                    st.session_state.df_enso['año'] = st.session_state.df_enso['año'].astype(int)
                     st.session_state.df_enso['mes'] = st.session_state.df_enso['mes'].astype(int)
-                    
-                    # Usar la columna 'ENOS' para el análisis
-                    st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['ENOS'].str.strip()
+                    st.session_state.df_enso['ENOS'] = st.session_state.df_enso['ENOS'].str.strip()
                     
                     st.success("Datos de ENSO cargados exitosamente.")
                 else:
@@ -336,44 +358,48 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
             fig_enso = px.bar(df_enso_precip_filtered,
                               x='año',
                               y='Precipitación',
-                              color='Año_ENOS',
+                              color='ENOS',
                               facet_col='Nombre_Estacion',
                               facet_col_wrap=2,
                               title='Precipitación Mensual y Tipo de Evento ENSO por Estación',
-                              labels={'Precipitación': 'Precipitación Mensual (mm)', 'Año_ENOS': 'Evento ENSO'})
+                              labels={'Precipitación': 'Precipitación Mensual (mm)', 'ENOS': 'Evento ENSO'})
             
             st.plotly_chart(fig_enso, use_container_width=True)
 
             # Análisis de Correlación
             st.subheader("Correlación entre Precipitación y ENSO")
             
-            # Convertir 'Precipitación' a numérica, reemplazando comas con puntos si es necesario
             df_enso_precip_filtered['Precipitación'] = pd.to_numeric(df_enso_precip_filtered['Precipitación'], errors='coerce')
             
-            # Calcular la precipitación promedio para todas las estaciones seleccionadas
             pptn_promedio_total = df_enso_precip_filtered.groupby(['año', 'mes'])['Precipitación'].mean().reset_index()
-            df_merged_corr = pd.merge(pptn_promedio_total, st.session_state.df_enso, on=['año', 'mes'], how='left')
             
-            # Eliminar filas con valores NaN
-            df_merged_corr.dropna(subset=['Precipitación', 'ONI_IndOceanico'], inplace=True)
-            
-            # Asegurar que las columnas sean numéricas antes de la correlación
-            df_merged_corr['Precipitación'] = pd.to_numeric(df_merged_corr['Precipitación'], errors='coerce')
-            df_merged_corr['ONI_IndOceanico'] = pd.to_numeric(df_merged_corr['ONI_IndOceanico'], errors='coerce')
-
-            # Calcular la correlación
-            if len(df_merged_corr) > 1:
-                correlation = df_merged_corr['Precipitación'].corr(df_merged_corr['ONI_IndOceanico'])
-                st.write(f"Coeficiente de correlación entre la precipitación promedio de las estaciones y el Índice Oceánico ONI: **{correlation:.2f}**")
-
-                if correlation > 0.3:
-                    st.success("Existe una correlación positiva, lo que sugiere que los eventos El Niño están asociados con una mayor precipitación.")
-                elif correlation < -0.3:
-                    st.success("Existe una correlación negativa, lo que sugiere que los eventos La Niña están asociados con una mayor precipitación.")
-                else:
-                    st.info("La correlación es débil o inexistente.")
+            # Asegurar que la columna 'ONI_IndOceanico' exista antes de intentar usarla
+            if 'ONI_IndOceanico' in st.session_state.df_enso.columns:
+                df_merged_corr = pd.merge(pptn_promedio_total, st.session_state.df_enso, on=['año', 'mes'], how='left')
             else:
-                st.warning("No hay suficientes datos para calcular la correlación. Por favor, ajusta los filtros de año o carga más datos.")
+                st.warning("No se encontró la columna 'ONI_IndOceanico' en el archivo ENSO para el análisis de correlación.")
+                df_merged_corr = pd.DataFrame() # Crear un DataFrame vacío para evitar errores
+            
+            if not df_merged_corr.empty:
+                df_merged_corr.dropna(subset=['Precipitación', 'ONI_IndOceanico'], inplace=True)
+                
+                df_merged_corr['Precipitación'] = pd.to_numeric(df_merged_corr['Precipitación'], errors='coerce')
+                df_merged_corr['ONI_IndOceanico'] = pd.to_numeric(df_merged_corr['ONI_IndOceanico'], errors='coerce')
+
+                if len(df_merged_corr) > 1:
+                    correlation = df_merged_corr['Precipitación'].corr(df_merged_corr['ONI_IndOceanico'])
+                    st.write(f"Coeficiente de correlación entre la precipitación promedio de las estaciones y el Índice Oceánico ONI: **{correlation:.2f}**")
+
+                    if correlation > 0.3:
+                        st.success("Existe una correlación positiva, lo que sugiere que los eventos El Niño están asociados con una mayor precipitación.")
+                    elif correlation < -0.3:
+                        st.success("Existe una correlación negativa, lo que sugiere que los eventos La Niña están asociados con una mayor precipitación.")
+                    else:
+                        st.info("La correlación es débil o inexistente.")
+                else:
+                    st.warning("No hay suficientes datos para calcular la correlación. Por favor, ajusta los filtros de año o carga más datos.")
+            else:
+                st.info("No se puede realizar el análisis de correlación. Por favor, verifica que los datos ENSO se cargaron correctamente.")
         else:
             st.info("No hay datos de precipitación para el rango de años de ENSO en las estaciones seleccionadas.")
 
@@ -385,7 +411,6 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
     if not selected_estaciones:
         st.info("Por favor, selecciona estaciones para la animación.")
     else:
-        # Asegurarse de que el DataFrame df_melted existe
         df_pptn_filtered = st.session_state.df_pptn[(st.session_state.df_pptn['año'] >= year_range[0]) & (st.session_state.df_pptn['año'] <= year_range[1])]
         df_melted = df_pptn_filtered.melt(id_vars=['Id_Fecha', 'Dia', 'mes-año', 'mes', 'año'],
                                            var_name='Codigo_Estacion',
