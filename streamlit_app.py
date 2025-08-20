@@ -47,7 +47,7 @@ def load_data_from_github():
         # Cargar ENSO_1950-2023.csv (con la codificación corregida)
         df_enso = pd.read_csv(f"{GITHUB_BASE_URL}ENSO_1950-2023.csv", sep='\t', encoding='latin-1')
         df_enso.columns = df_enso.columns.str.strip()
-        df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
+        df_enso['ENOS'] = df_enso['ENOS'].str.strip()
         
         # Cargar shapefile desde el zip
         response = requests.get(SHAPEFILE_URL)
@@ -137,7 +137,7 @@ with st.expander(" 📂 Cargar Datos"):
         try:
             df_enso = pd.read_csv(uploaded_enso, sep='\t', encoding='latin-1')
             df_enso.columns = df_enso.columns.str.strip()
-            df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
+            df_enso['ENOS'] = df_enso['ENOS'].str.strip()
             st.success("Datos de ENSO cargados exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo ENSO: {e}")
@@ -261,11 +261,11 @@ if df is not None and gdf_colombia is not None and df_pptn is not None and df_en
             fig_enso = px.bar(df_enso_precip_filtered,
                               x='Año',
                               y='Precipitación',
-                              color='Año_ENOS',
+                              color='ENOS',
                               facet_col='Nombre_Estacion',
                               facet_col_wrap=2,
                               title='Precipitación Mensual y Tipo de Evento ENSO por Estación',
-                              labels={'Precipitación': 'Precipitación Mensual (mm)', 'Año_ENOS': 'Evento ENSO'})
+                              labels={'Precipitación': 'Precipitación Mensual (mm)', 'ENOS': 'Evento ENSO'})
             
             st.plotly_chart(fig_enso, use_container_width=True)
 
