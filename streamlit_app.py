@@ -24,7 +24,7 @@ GITHUB_BASE_URL = "https://raw.githubusercontent.com/TuUsuario/TuRepositorio/mai
 SHAPEFILE_URL = "https://github.com/TuUsuario/TuRepositorio/raw/main/shapefile.zip"
 
 # Inicializar st.session_state para almacenar los DataFrames
-if 'df' not in st.session_aate:
+if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_pptn' not in st.session_state:
     st.session_state.df_pptn = None
