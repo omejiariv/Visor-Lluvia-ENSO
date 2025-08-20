@@ -154,21 +154,23 @@ with st.sidebar:
                 st.session_state.df_enso = pd.read_csv(uploaded_enso, sep=csv_sep_enso, encoding='latin-1')
                 st.session_state.df_enso.columns = st.session_state.df_enso.columns.str.strip()
                 
-                # Manejar la columna 'Id_mes_año' si existe
-                if 'Id_mes_año' in st.session_state.df_enso.columns:
-                    st.session_state.df_enso[['mes', 'año']] = st.session_state.df_enso['Id_mes_año'].str.split('-', expand=True)
-                    st.session_state.df_enso['año'] = st.session_state.df_enso['año'].astype(int)
+                # --- Lógica corregida para el archivo ENSO ---
+                # Verificar si las columnas esenciales existen en el DataFrame
+                required_cols = ['Año', 'mes', 'ENOS']
+                if all(col in st.session_state.df_enso.columns for col in required_cols):
+                    # Convertir las columnas de año y mes a tipo int para su correcto manejo
+                    st.session_state.df_enso['año'] = st.session_state.df_enso['Año'].astype(int)
                     st.session_state.df_enso['mes'] = st.session_state.df_enso['mes'].astype(int)
-                    # Usar la columna 'ENOS' del nuevo archivo
-                    st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['ENOS']
-                else:
-                    # Lógica de respaldo si no existe 'Id_mes_año'
-                    st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['Año_ENOS'].str.strip()
                     
-                st.success("Datos de ENSO cargados exitosamente.")
-            except KeyError as e:
-                st.error(f"Error al leer el archivo ENSO: Columna clave no encontrada. Asegúrate de que el archivo contiene las columnas 'Id_mes_año' y 'ENOS'.")
-                st.session_state.df_enso = None
+                    # Usar la columna 'ENOS' para el análisis
+                    st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['ENOS'].str.strip()
+                    
+                    st.success("Datos de ENSO cargados exitosamente.")
+                else:
+                    # Si faltan columnas, mostrar un mensaje de error claro
+                    missing_cols = [col for col in required_cols if col not in st.session_state.df_enso.columns]
+                    st.error(f"Error al leer el archivo ENSO: Faltan las siguientes columnas: {', '.join(missing_cols)}. Asegúrate de que el archivo contiene las columnas 'Año', 'mes' y 'ENOS'.")
+                    st.session_state.df_enso = None
             except Exception as e:
                 st.error(f"Error al leer el archivo ENSO: {e}")
                 st.session_state.df_enso = None
