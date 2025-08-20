@@ -17,15 +17,21 @@ st.title(' ☔ Visor de Información Geoespacial de Precipitación 🌧️ ')
 st.markdown("---")
 
 # --- Sección para la carga de datos ---
-with st.expander(" � Cargar Datos"):
+with st.expander(" 📂 Cargar Datos"):
     st.write("Carga tu archivo `mapaCV.csv` (o un archivo con formato similar), los archivos del shapefile (`.shp`, `.shx`, `.dbf`) comprimidos en un único archivo `.zip`, el archivo `DatosPptn_Om.csv` y el archivo `ENSO_1950-2023.csv`.")
     
+    # Selector de separador para todos los archivos CSV
+    separator = st.radio(
+        "Elige el separador de tus archivos CSV:",
+        (';', ',', '\t')
+    )
+
     # Carga de archivo mapaCV.csv
-    uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv")
+    uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv", key="mapaCV_uploader")
     df = None
     if uploaded_file_csv:
         try:
-            df = pd.read_csv(uploaded_file_csv, sep=';')
+            df = pd.read_csv(uploaded_file_csv, sep=separator)
             # Renombrar columnas con los nombres correctos del usuario
             df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
             st.success("Archivo mapaCV.csv cargado exitosamente.")
@@ -34,30 +40,28 @@ with st.expander(" � Cargar Datos"):
             df = None
     
     # Carga de archivo DatosPptn_Om.csv
-    uploaded_file_daily = st.file_uploader("Cargar archivo .csv de datos diarios (DatosPptn_Om.csv)", type="csv")
+    uploaded_file_daily = st.file_uploader("Cargar archivo .csv de datos diarios (DatosPptn_Om.csv)", type="csv", key="daily_data_uploader")
     df_daily = None
     if uploaded_file_daily:
         try:
-            df_daily = pd.read_csv(uploaded_file_daily, sep=';')
+            df_daily = pd.read_csv(uploaded_file_daily, sep=separator)
             st.success("Archivo DatosPptn_Om.csv cargado exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo de datos diarios: {e}")
             df_daily = None
             
     # Carga de archivo ENSO_1950-2023.csv
-    uploaded_file_enso = st.file_uploader("Cargar archivo .csv de datos ENSO (ENSO_1950-2023.csv)", type="csv")
+    uploaded_file_enso = st.file_uploader("Cargar archivo .csv de datos ENSO (ENSO_1950-2023.csv)", type="csv", key="enso_uploader")
     df_enso = None
     if uploaded_file_enso:
         try:
-            # Los datos de ENSO están separados por tabuladores, no comas
-            df_enso = pd.read_csv(uploaded_file_enso, sep='\t')
+            df_enso = pd.read_csv(uploaded_file_enso, sep=separator)
             st.success("Archivo ENSO_1950-2023.csv cargado exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo ENSO: {e}")
-            df_enso = None
 
     # Carga de archivo Shapefile en formato ZIP
-    uploaded_zip = st.file_uploader("Cargar shapefile (.zip)", type="zip")
+    uploaded_zip = st.file_uploader("Cargar shapefile (.zip)", type="zip", key="shp_uploader")
     gdf = None
     if uploaded_zip:
         try:
@@ -501,42 +505,47 @@ if df is not None:
                     st.info("Por favor, selecciona al menos una estación en la barra lateral.")
                 else:
                     try:
-                        # Limpieza y preparación de datos diarios
-                        df_daily_clean = df_daily.copy()
-                        df_daily_clean['Id_Fecha'] = pd.to_datetime(df_daily_clean['Id_Fecha'], format='%d/%m/%Y', errors='coerce')
-                        df_daily_clean = df_daily_clean.dropna(subset=['Id_Fecha'])
-                        df_daily_clean = df_daily_clean.replace('n.d', pd.NA).replace('A', pd.NA)
-                        
-                        daily_stations_ids = [col for col in df_daily_clean.columns if col not in ['Id_Fecha', 'Dia ', 'mes-año', 'mes', 'año']]
-                        df_daily_clean[daily_stations_ids] = df_daily_clean[daily_stations_ids].apply(pd.to_numeric, errors='coerce')
-
-                        st.subheader("Series de Tiempo de Precipitación Diaria")
-                        selected_daily_station_id = st.selectbox(
-                            "Selecciona una estación para visualizar los datos diarios:",
-                            options=[str(df.loc[df['Nom_Est'] == s, 'Id_estacion'].iloc[0]) for s in selected_stations_list if not df.loc[df['Nom_Est'] == s, 'Id_estacion'].empty]
-                        )
-                        
-                        if selected_daily_station_id:
-                            df_daily_plot = df_daily_clean[['Id_Fecha', selected_daily_station_id]].copy()
-                            df_daily_plot.columns = ['Fecha', 'Precipitación']
+                        # Validación de columnas necesarias para datos diarios
+                        if 'Id_Fecha' not in df_daily.columns:
+                            st.error("Error: La columna 'Id_Fecha' no se encuentra en el archivo de datos diarios. Por favor, verifica el archivo.")
+                        else:
+                            df_daily_clean = df_daily.copy()
+                            # Limpieza y preparación de datos diarios
+                            # El formato d/mm/aaaa es gestionado por pd.to_datetime
+                            df_daily_clean['Id_Fecha'] = pd.to_datetime(df_daily_clean['Id_Fecha'], format='%d/%m/%Y', errors='coerce')
+                            df_daily_clean = df_daily_clean.dropna(subset=['Id_Fecha'])
+                            df_daily_clean = df_daily_clean.replace('n.d', pd.NA).replace('A', pd.NA)
                             
-                            fig_daily = px.line(df_daily_plot, x='Fecha', y='Precipitación', title=f"Precipitación Diaria para la estación {selected_daily_station_id}")
-                            st.plotly_chart(fig_daily, use_container_width=True)
+                            daily_stations_ids = [col for col in df_daily_clean.columns if col not in ['Id_Fecha', 'Dia ', 'mes-año', 'mes', 'año']]
+                            df_daily_clean[daily_stations_ids] = df_daily_clean[daily_stations_ids].apply(pd.to_numeric, errors='coerce')
                             
-                            st.subheader("Precipitación Mensual por Estación")
-                            df_monthly = df_daily_clean.copy()
-                            df_monthly['Año'] = df_monthly['Id_Fecha'].dt.year
-                            df_monthly['Mes'] = df_monthly['Id_Fecha'].dt.month
+                            st.subheader("Series de Tiempo de Precipitación Diaria")
+                            selected_daily_station_id = st.selectbox(
+                                "Selecciona una estación para visualizar los datos diarios:",
+                                options=[str(df.loc[df['Nom_Est'] == s, 'Id_estacion'].iloc[0]) for s in selected_stations_list if not df.loc[df['Nom_Est'] == s, 'Id_estacion'].empty]
+                            )
                             
-                            # Agrupar por año y mes
-                            monthly_precip = df_monthly.groupby(['Año', 'Mes'])[daily_stations_ids].sum().reset_index()
-                            monthly_precip['Año-Mes'] = monthly_precip['Año'].astype(str) + '-' + monthly_precip['Mes'].astype(str).str.zfill(2)
-                            
-                            df_monthly_plot = monthly_precip[['Año-Mes', selected_daily_station_id]].copy()
-                            df_monthly_plot.columns = ['Fecha', 'Precipitación']
-                            fig_monthly = px.bar(df_monthly_plot, x='Fecha', y='Precipitación', title=f"Precipitación Mensual para la estación {selected_daily_station_id}")
-                            st.plotly_chart(fig_monthly, use_container_width=True)
-                            
+                            if selected_daily_station_id:
+                                df_daily_plot = df_daily_clean[['Id_Fecha', selected_daily_station_id]].copy()
+                                df_daily_plot.columns = ['Fecha', 'Precipitación']
+                                
+                                fig_daily = px.line(df_daily_plot, x='Fecha', y='Precipitación', title=f"Precipitación Diaria para la estación {selected_daily_station_id}")
+                                st.plotly_chart(fig_daily, use_container_width=True)
+                                
+                                st.subheader("Precipitación Mensual por Estación")
+                                df_monthly = df_daily_clean.copy()
+                                df_monthly['Año'] = df_monthly['Id_Fecha'].dt.year
+                                df_monthly['Mes'] = df_monthly['Id_Fecha'].dt.month
+                                
+                                # Agrupar por año y mes
+                                monthly_precip = df_monthly.groupby(['Año', 'Mes'])[daily_stations_ids].sum().reset_index()
+                                monthly_precip['Año-Mes'] = monthly_precip['Año'].astype(str) + '-' + monthly_precip['Mes'].astype(str).str.zfill(2)
+                                
+                                df_monthly_plot = monthly_precip[['Año-Mes', selected_daily_station_id]].copy()
+                                df_monthly_plot.columns = ['Fecha', 'Precipitación']
+                                fig_monthly = px.bar(df_monthly_plot, x='Fecha', y='Precipitación', title=f"Precipitación Mensual para la estación {selected_daily_station_id}")
+                                st.plotly_chart(fig_monthly, use_container_width=True)
+                                
                     except Exception as e:
                         st.error(f"Ocurrió un error al procesar los datos diarios: {e}")
             
@@ -550,47 +559,51 @@ if df is not None:
                     st.info("Por favor, selecciona al menos una estación en la barra lateral.")
                 else:
                     try:
-                        df_enso_clean = df_enso.copy()
-                        df_enso_clean['ONI_IndOceanico'] = pd.to_numeric(df_enso_clean['ONI_IndOceanico'], errors='coerce')
-                        
-                        # Obtener los datos anuales de precipitación de las estaciones seleccionadas
-                        df_annual_precip = selected_stations_df.melt(
-                            id_vars=['Nom_Est', 'Id_estacion'],
-                            value_vars=years_to_analyze_present,
-                            var_name='Año',
-                            value_name='Precipitación'
-                        )
-                        df_annual_precip['Año'] = pd.to_numeric(df_annual_precip['Año'], errors='coerce')
-                        
-                        st.subheader("Índice Oceánico del Niño (ONI)")
-                        fig_enso = px.line(df_enso_clean, x='Id_año_mes', y='ONI_IndOceanico', title="Serie de Tiempo del Índice Oceánico del Niño (ONI)")
-                        st.plotly_chart(fig_enso, use_container_width=True)
-
-                        st.subheader("Correlación de Precipitación Anual y ENSO")
-                        
-                        # Unir datos de ENSO y precipitación anual
-                        df_enso_annual = df_enso_clean.groupby('Año')['ONI_IndOceanico'].mean().reset_index()
-                        
-                        # Fusionar los DataFrames
-                        merged_df = pd.merge(df_annual_precip, df_enso_annual, on='Año', how='inner')
-
-                        # Crear el gráfico de dispersión con línea de tendencia
-                        if not merged_df.empty:
-                            fig_corr = px.scatter(
-                                merged_df,
-                                x='ONI_IndOceanico',
-                                y='Precipitación',
-                                color='Nom_Est',
-                                trendline='ols',
-                                title='Correlación entre Precipitación Anual y ONI'
-                            )
-                            fig_corr.update_layout(
-                                xaxis_title="ONI (Índice Oceánico del Niño)",
-                                yaxis_title="Precipitación Anual (mm)"
-                            )
-                            st.plotly_chart(fig_corr, use_container_width=True)
+                        # Validación de columnas necesarias para ENSO
+                        if 'ONI_IndOceanico' not in df_enso.columns or 'Año' not in df_enso.columns:
+                            st.error("Error: Las columnas 'ONI_IndOceanico' o 'Año' no se encuentran en el archivo de datos ENSO. Por favor, verifica el archivo.")
                         else:
-                            st.info("No hay suficientes datos superpuestos entre el rango de años de precipitación y los datos ENSO para generar el gráfico de correlación. Por favor, revisa tus archivos.")
-                        
+                            df_enso_clean = df_enso.copy()
+                            df_enso_clean['ONI_IndOceanico'] = pd.to_numeric(df_enso_clean['ONI_IndOceanico'], errors='coerce')
+                            
+                            # Obtener los datos anuales de precipitación de las estaciones seleccionadas
+                            df_annual_precip = selected_stations_df.melt(
+                                id_vars=['Nom_Est', 'Id_estacion'],
+                                value_vars=years_to_analyze_present,
+                                var_name='Año',
+                                value_name='Precipitación'
+                            )
+                            df_annual_precip['Año'] = pd.to_numeric(df_annual_precip['Año'], errors='coerce')
+                            
+                            st.subheader("Índice Oceánico del Niño (ONI)")
+                            fig_enso = px.line(df_enso_clean, x='Id_año_mes', y='ONI_IndOceanico', title="Serie de Tiempo del Índice Oceánico del Niño (ONI)")
+                            st.plotly_chart(fig_enso, use_container_width=True)
+
+                            st.subheader("Correlación de Precipitación Anual y ENSO")
+                            
+                            # Unir datos de ENSO y precipitación anual
+                            df_enso_annual = df_enso_clean.groupby('Año')['ONI_IndOceanico'].mean().reset_index()
+                            
+                            # Fusionar los DataFrames
+                            merged_df = pd.merge(df_annual_precip, df_enso_annual, on='Año', how='inner')
+
+                            # Crear el gráfico de dispersión con línea de tendencia
+                            if not merged_df.empty:
+                                fig_corr = px.scatter(
+                                    merged_df,
+                                    x='ONI_IndOceanico',
+                                    y='Precipitación',
+                                    color='Nom_Est',
+                                    trendline='ols',
+                                    title='Correlación entre Precipitación Anual y ONI'
+                                )
+                                fig_corr.update_layout(
+                                    xaxis_title="ONI (Índice Oceánico del Niño)",
+                                    yaxis_title="Precipitación Anual (mm)"
+                                )
+                                st.plotly_chart(fig_corr, use_container_width=True)
+                            else:
+                                st.info("No hay suficientes datos superpuestos entre el rango de años de precipitación y los datos ENSO para generar el gráfico de correlación. Por favor, revisa tus archivos.")
+                            
                     except Exception as e:
                         st.error(f"Ocurrió un error al procesar los datos de ENSO: {e}")
