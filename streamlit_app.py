@@ -38,7 +38,6 @@ def load_data_from_github():
         # Cargar mapaCV.csv
         df = pd.read_csv(f"{GITHUB_BASE_URL}mapaCV.csv", sep=';')
         df.columns = df.columns.str.strip()
-        df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
         
         # Cargar DatosPptn_Om.csv
         df_pptn = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
@@ -47,7 +46,7 @@ def load_data_from_github():
         # Cargar ENSO_1950-2023.csv (con la codificación corregida)
         df_enso = pd.read_csv(f"{GITHUB_BASE_URL}ENSO_1950-2023.csv", sep='\t', encoding='latin-1')
         df_enso.columns = df_enso.columns.str.strip()
-        df_enso['ENSO'] = df_enso['ENSO'].str.strip()
+        df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
         
         # Cargar shapefile desde el zip
         response = requests.get(SHAPEFILE_URL)
@@ -92,7 +91,6 @@ with st.expander(" 📂 Cargar Datos"):
         try:
             df = pd.read_csv(uploaded_file_csv, sep=csv_sep)
             df.columns = df.columns.str.strip()
-            df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
             st.success("Archivo CSV cargado exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo CSV: {e}")
@@ -135,9 +133,10 @@ with st.expander(" 📂 Cargar Datos"):
     uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
     if uploaded_enso:
         try:
-            df_enso = pd.read_csv(uploaded_enso, sep='\t', encoding='latin-1')
+            # Se usa el separador definido por el usuario para leer el archivo ENSO
+            df_enso = pd.read_csv(uploaded_enso, sep=csv_sep, encoding='latin-1')
             df_enso.columns = df_enso.columns.str.strip()
-            df_enso['ENSO'] = df_enso['ENSO'].str.strip()
+            df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
             st.success("Datos de ENSO cargados exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo ENSO: {e}")
@@ -148,6 +147,28 @@ if df is not None and gdf_colombia is not None and df_pptn is not None and df_en
     st.markdown("---")
     st.header('📊 Visualización y Análisis de Datos')
     
+    # Sección para seleccionar la columna de nombres de estación
+    st.subheader("Configuración de Estaciones")
+    try:
+        # Asegurarse de que las columnas están disponibles antes de mostrar el selectbox
+        if 'Nombre_Estacion' not in df.columns:
+            columnas_df = list(df.columns)
+            selected_name_col = st.selectbox(
+                "Selecciona la columna que contiene los nombres de las estaciones:",
+                columnas_df,
+                index=None,
+                placeholder="Selecciona una columna..."
+            )
+            if selected_name_col:
+                df = df.rename(columns={selected_name_col: 'Nombre_Estacion'})
+                st.success(f"La columna '{selected_name_col}' ha sido asignada como 'Nombre_Estacion'.")
+            else:
+                st.warning("Por favor, selecciona la columna de nombres de estación para continuar.")
+                st.stop()
+    except KeyError:
+        st.error("Ha ocurrido un error al intentar configurar las columnas. Por favor, revisa tus archivos CSV.")
+        st.stop()
+        
     # Filtro de estaciones
     estaciones = sorted(df['Nombre_Estacion'].unique())
     selected_estaciones = st.multiselect("Selecciona Estaciones:", estaciones, default=estaciones[:5])
@@ -174,7 +195,7 @@ if df is not None and gdf_colombia is not None and df_pptn is not None and df_en
     st.subheader("Precipitación Anual por Estación")
     
     if not selected_estaciones:
-        st.info("Por favor, selecciona al mENSO una estación para visualizar los datos.")
+        st.info("Por favor, selecciona al menos una estación para visualizar los datos.")
     else:
         df_pptn_filtered = df_pptn[(df_pptn['año'] >= year_range[0]) & (df_pptn['año'] <= year_range[1])]
         
@@ -232,7 +253,7 @@ if df is not None and gdf_colombia is not None and df_pptn is not None and df_en
     st.subheader("Análisis de la Relación entre Precipitación y ENSO")
     
     if not selected_estaciones:
-        st.info("Por favor, selecciona al mENSO una estación para el análisis ENSO.")
+        st.info("Por favor, selecciona al menos una estación para el análisis ENSO.")
     else:
         # Calcular la precipitación mensual por estación
         df_pptn_filtered = df_pptn[(df_pptn['año'] >= df_enso['Año'].min()) & (df_pptn['año'] <= df_enso['Año'].max())].copy()
@@ -261,11 +282,11 @@ if df is not None and gdf_colombia is not None and df_pptn is not None and df_en
             fig_enso = px.bar(df_enso_precip_filtered,
                               x='Año',
                               y='Precipitación',
-                              color='ENSO',
+                              color='Año_ENOS',
                               facet_col='Nombre_Estacion',
                               facet_col_wrap=2,
                               title='Precipitación Mensual y Tipo de Evento ENSO por Estación',
-                              labels={'Precipitación': 'Precipitación Mensual (mm)', 'ENSO': 'Evento ENSO'})
+                              labels={'Precipitación': 'Precipitación Mensual (mm)', 'Año_ENOS': 'Evento ENSO'})
             
             st.plotly_chart(fig_enso, use_container_width=True)
 
