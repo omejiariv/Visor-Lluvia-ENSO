@@ -74,104 +74,128 @@ def load_data_from_github():
         st.error(f"Ocurrió un error al cargar los datos desde GitHub: {e}")
         return False
 
-# --- Sección para la carga de datos ---
-with st.expander(" 📂 Cargar Datos"):
-    st.subheader("Carga Automática desde GitHub")
-    if st.button("Cargar datos por defecto"):
-        load_data_from_github()
-    
-    st.markdown("---")
-    st.subheader("Carga Manual de Archivos")
-    st.write("Carga tu archivo `mapaCV.csv` y los archivos del shapefile (`.shp`, `.shx`, `.dbf`) comprimidos en un único archivo `.zip`.")
-    
-    # Carga de archivos CSV
-    uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv")
-    csv_sep = st.text_input("Separador de CSV", value=';')
-    if uploaded_file_csv:
-        try:
-            df = pd.read_csv(uploaded_file_csv, sep=csv_sep)
-            df.columns = df.columns.str.strip()
-            st.success("Archivo CSV cargado exitosamente.")
-        except Exception as e:
-            st.error(f"Error al leer el archivo CSV: {e}")
-            df = None
-    
-    # Carga de archivos del shapefile
-    uploaded_zip = st.file_uploader("Cargar archivos shapefile (.zip)", type="zip")
-    if uploaded_zip:
-        try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                zip_path = os.path.join(tmpdir, "uploaded.zip")
-                with open(zip_path, "wb") as f:
-                    f.write(uploaded_zip.getbuffer())
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(tmpdir)
-                shp_file = [f for f in os.listdir(tmpdir) if f.endswith('.shp')][0]
-                shp_path = os.path.join(tmpdir, shp_file)
-                gdf_colombia = gpd.read_file(shp_path)
-                st.success("Archivos del shapefile cargados exitosamente.")
-        except Exception as e:
-            st.error(f"Error al leer los archivos del shapefile: {e}")
-            gdf_colombia = None
-    
-    st.markdown("---")
-    st.subheader("Cargar Datos de Precipitación y ENSO")
-    st.write("Cargar archivo de datos diarios de precipitación (DatosPptn_Om.csv) y el archivo ENSO (ENSO_1950-2023.csv).")
+# --- Configuración en el panel lateral (sidebar) ---
+with st.sidebar:
+    st.header('🔧 Controles y Configuración')
 
-    # Carga de datos de precipitación
-    uploaded_pptn = st.file_uploader("Cargar archivo de datos diarios de precipitación", type="csv", key="pptn_uploader")
-    if uploaded_pptn:
-        try:
-            df_pptn = pd.read_csv(uploaded_pptn, sep=csv_sep)
-            df_pptn.columns = df_pptn.columns.str.strip()
-            st.success("Datos de precipitación cargados exitosamente.")
-        except Exception as e:
-            st.error(f"Error al leer el archivo de precipitación: {e}")
-            df_pptn = None
-    
-    # Carga de datos ENSO
-    uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
-    if uploaded_enso:
-        try:
-            # Se usa el separador definido por el usuario para leer el archivo ENSO
-            df_enso = pd.read_csv(uploaded_enso, sep=csv_sep, encoding='latin-1')
-            df_enso.columns = df_enso.columns.str.strip()
-            df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
-            st.success("Datos de ENSO cargados exitosamente.")
-        except Exception as e:
-            st.error(f"Error al leer el archivo ENSO: {e}")
-            df_enso = None
+    # --- Sección para la carga de datos ---
+    with st.expander(" 📂 Cargar Datos"):
+        st.subheader("Carga Automática desde GitHub")
+        if st.button("Cargar datos por defecto"):
+            load_data_from_github()
+        
+        st.markdown("---")
+        st.subheader("Carga Manual de Archivos")
+        st.write("Carga tu archivo `mapaCV.csv` y los archivos del shapefile (`.shp`, `.shx`, `.dbf`) comprimidos en un único archivo `.zip`.")
+        
+        # Carga de archivos CSV
+        uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv")
+        csv_sep = st.text_input("Separador de CSV", value=';')
+        if uploaded_file_csv:
+            try:
+                df = pd.read_csv(uploaded_file_csv, sep=csv_sep)
+                df.columns = df.columns.str.strip()
+                st.success("Archivo CSV cargado exitosamente.")
+            except Exception as e:
+                st.error(f"Error al leer el archivo CSV: {e}")
+                df = None
+        
+        # Carga de archivos del shapefile
+        uploaded_zip = st.file_uploader("Cargar archivos shapefile (.zip)", type="zip")
+        if uploaded_zip:
+            try:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    zip_path = os.path.join(tmpdir, "uploaded.zip")
+                    with open(zip_path, "wb") as f:
+                        f.write(uploaded_zip.getbuffer())
+                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(tmpdir)
+                    shp_file = [f for f in os.listdir(tmpdir) if f.endswith('.shp')][0]
+                    shp_path = os.path.join(tmpdir, shp_file)
+                    gdf_colombia = gpd.read_file(shp_path)
+                    st.success("Archivos del shapefile cargados exitosamente.")
+            except Exception as e:
+                st.error(f"Error al leer los archivos del shapefile: {e}")
+                gdf_colombia = None
+        
+        st.markdown("---")
+        st.subheader("Cargar Datos de Precipitación y ENSO")
+        st.write("Cargar archivo de datos diarios de precipitación (DatosPptn_Om.csv) y el archivo ENSO (ENSO_1950-2023.csv).")
+
+        # Carga de datos de precipitación
+        uploaded_pptn = st.file_uploader("Cargar archivo de datos diarios de precipitación", type="csv", key="pptn_uploader")
+        if uploaded_pptn:
+            try:
+                df_pptn = pd.read_csv(uploaded_pptn, sep=csv_sep)
+                df_pptn.columns = df_pptn.columns.str.strip()
+                st.success("Datos de precipitación cargados exitosamente.")
+            except Exception as e:
+                st.error(f"Error al leer el archivo de precipitación: {e}")
+                df_pptn = None
+        
+        # Carga de datos ENSO
+        uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
+        if uploaded_enso:
+            try:
+                # Se usa el separador definido por el usuario para leer el archivo ENSO
+                df_enso = pd.read_csv(uploaded_enso, sep=csv_sep, encoding='latin-1')
+                df_enso.columns = df_enso.columns.str.strip()
+                df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
+                st.success("Datos de ENSO cargados exitosamente.")
+            except Exception as e:
+                st.error(f"Error al leer el archivo ENSO: {e}")
+                df_enso = None
     
 # --- Sección de visualización de datos ---
 if df is not None and gdf_colombia is not None and df_pptn is not None and df_enso is not None:
     st.markdown("---")
     st.header('📊 Visualización y Análisis de Datos')
     
-    # Sección para seleccionar la columna de nombres de estación
-    st.subheader("Configuración de Estaciones")
+    # Sección para seleccionar la columna de nombres de estación y los años
+    st.sidebar.subheader("Configuración de Estaciones y Tiempo")
     try:
         # Asegurarse de que las columnas están disponibles antes de mostrar el selectbox
-        if 'Nombre_Estacion' not in df.columns:
-            columnas_df = list(df.columns)
-            selected_name_col = st.selectbox(
-                "Selecciona la columna que contiene los nombres de las estaciones:",
-                columnas_df,
-                index=None,
-                placeholder="Selecciona una columna..."
-            )
-            if selected_name_col:
-                df = df.rename(columns={selected_name_col: 'Nombre_Estacion'})
-                st.success(f"La columna '{selected_name_col}' ha sido asignada como 'Nombre_Estacion'.")
-            else:
-                st.warning("Por favor, selecciona la columna de nombres de estación para continuar.")
-                st.stop()
+        columnas_df = list(df.columns)
+        selected_name_col = st.sidebar.selectbox(
+            "Selecciona la columna con los nombres de las estaciones:",
+            columnas_df,
+            index=columnas_df.index('Nom_Est') if 'Nom_Est' in columnas_df else None,
+            placeholder="Selecciona una columna..."
+        )
+        if selected_name_col:
+            df = df.rename(columns={selected_name_col: 'Nombre_Estacion'})
+            # Se usa st.sidebar.success para mostrar el mensaje en la barra lateral
+            st.sidebar.success(f"La columna '{selected_name_col}' ha sido asignada como 'Nombre_Estacion'.")
+        else:
+            st.warning("Por favor, selecciona la columna de nombres de estación para continuar.")
+            st.stop()
+            
+        columnas_pptn = list(df_pptn.columns)
+        selected_year_col = st.sidebar.selectbox(
+            "Selecciona la columna con el año (Precipitación):",
+            columnas_pptn,
+            index=columnas_pptn.index('año') if 'año' in columnas_pptn else None,
+            placeholder="Selecciona una columna..."
+        )
+        if selected_year_col:
+            df_pptn = df_pptn.rename(columns={selected_year_col: 'año'})
+        
+        selected_month_col = st.sidebar.selectbox(
+            "Selecciona la columna con el mes (Precipitación):",
+            columnas_pptn,
+            index=columnas_pptn.index('mes') if 'mes' in columnas_pptn else None,
+            placeholder="Selecciona una columna..."
+        )
+        if selected_month_col:
+            df_pptn = df_pptn.rename(columns={selected_month_col: 'mes'})
+
     except KeyError:
         st.error("Ha ocurrido un error al intentar configurar las columnas. Por favor, revisa tus archivos CSV.")
         st.stop()
         
     # Filtro de estaciones
     estaciones = sorted(df['Nombre_Estacion'].unique())
-    selected_estaciones = st.multiselect("Selecciona Estaciones:", estaciones, default=estaciones[:5])
+    selected_estaciones = st.sidebar.multiselect("Selecciona Estaciones:", estaciones, default=estaciones[:5])
     
     # Si se seleccionan estaciones, filtrar el DataFrame
     df_filtered = df[df['Nombre_Estacion'].isin(selected_estaciones)]
@@ -184,7 +208,7 @@ if df is not None and gdf_colombia is not None and df_pptn is not None and df_en
     # Crear un control para el rango de años
     min_year = int(df_pptn['año'].min()) if not df_pptn['año'].isnull().all() else 2000
     max_year = int(df_pptn['año'].max()) if not df_pptn['año'].isnull().all() else 2023
-    year_range = st.slider(
+    year_range = st.sidebar.slider(
         "Selecciona el Rango de Años para el Análisis:",
         min_value=min_year,
         max_value=max_year,
