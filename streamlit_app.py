@@ -46,11 +46,16 @@ def load_data_from_github():
         st.session_state.df_pptn = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
         st.session_state.df_pptn.columns = st.session_state.df_pptn.columns.str.strip()
         
-        # Cargar ENSO_1950-2023.csv (con la codificación corregida)
-        st.session_state.df_enso = pd.read_csv(f"{GITHUB_BASE_URL}ENSO_1950-2023.csv", sep='\t', encoding='latin-1')
+        # Cargar ENSO_1950-2023.csv (con la codificación y separador corregidos)
+        st.session_state.df_enso = pd.read_csv(f"{GITHUB_BASE_URL}ENSO_1950-2023.csv", sep=';', encoding='latin-1')
         st.session_state.df_enso.columns = st.session_state.df_enso.columns.str.strip()
-        st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['Año_ENOS'].str.strip()
         
+        if 'ENOS' in st.session_state.df_enso.columns:
+            st.session_state.df_enso['ENOS'] = st.session_state.df_enso['ENOS'].str.strip()
+        else:
+            st.error("Columna 'ENOS' no encontrada en el archivo ENSO. La carga automática falló.")
+            return False
+            
         # Cargar shapefile desde el zip
         response = requests.get(SHAPEFILE_URL)
         if response.status_code == 200:
@@ -138,13 +143,27 @@ with st.sidebar:
         
         # Carga de datos ENSO
         uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
-        csv_sep_enso = st.text_input("Separador de datos ENSO", value='\t')
+        csv_sep_enso = st.text_input("Separador de datos ENSO", value=';')
         if uploaded_enso:
             try:
                 st.session_state.df_enso = pd.read_csv(uploaded_enso, sep=csv_sep_enso, encoding='latin-1')
                 st.session_state.df_enso.columns = st.session_state.df_enso.columns.str.strip()
-                st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['Año_ENOS'].str.strip()
+                
+                # Manejar la columna 'Id_mes_año' si existe
+                if 'Id_mes_año' in st.session_state.df_enso.columns:
+                    st.session_state.df_enso[['mes', 'año']] = st.session_state.df_enso['Id_mes_año'].str.split('-', expand=True)
+                    st.session_state.df_enso['año'] = st.session_state.df_enso['año'].astype(int)
+                    st.session_state.df_enso['mes'] = st.session_state.df_enso['mes'].astype(int)
+                    # Usar la columna 'ENOS' del nuevo archivo
+                    st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['ENOS']
+                else:
+                    # Lógica de respaldo si no existe 'Id_mes_año'
+                    st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['Año_ENOS'].str.strip()
+                    
                 st.success("Datos de ENSO cargados exitosamente.")
+            except KeyError as e:
+                st.error(f"Error al leer el archivo ENSO: Columna clave no encontrada. Asegúrate de que el archivo contiene las columnas 'Id_mes_año' y 'ENOS'.")
+                st.session_state.df_enso = None
             except Exception as e:
                 st.error(f"Error al leer el archivo ENSO: {e}")
                 st.session_state.df_enso = None
@@ -162,7 +181,7 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
     selected_name_col = st.sidebar.selectbox(
         "Selecciona la columna con los nombres de las estaciones:",
         columnas_df,
-        index=columnas_df.index('Nom_Est') if 'Nom_Est' in columnas_df else None,
+        index=columnas_df.index('Nom_Est') if 'Nom_Est' in columnas_df else 0,
         placeholder="Selecciona una columna..."
     )
     if selected_name_col:
@@ -176,13 +195,13 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
     selected_year_col = st.sidebar.selectbox(
         "Selecciona la columna con el año (Precipitación):",
         columnas_pptn,
-        index=columnas_pptn.index('año') if 'año' in columnas_pptn else None,
+        index=columnas_pptn.index('año') if 'año' in columnas_pptn else 0,
         placeholder="Selecciona una columna..."
     )
     selected_month_col = st.sidebar.selectbox(
         "Selecciona la columna con el mes (Precipitación):",
         columnas_pptn,
-        index=columnas_pptn.index('mes') if 'mes' in columnas_pptn else None,
+        index=columnas_pptn.index('mes') if 'mes' in columnas_pptn else 0,
         placeholder="Selecciona una columna..."
     )
 
@@ -206,13 +225,20 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
             st.session_state.df_pptn[col] = pd.to_numeric(st.session_state.df_pptn[col].astype(str).str.replace(',', '.'), errors='coerce')
     
     # Crear un control para el rango de años
-    min_year = int(st.session_state.df_pptn['año'].min()) if 'año' in st.session_state.df_pptn.columns and not st.session_state.df_pptn['año'].isnull().all() else 2000
-    max_year = int(st.session_state.df_pptn['año'].max()) if 'año' in st.session_state.df_pptn.columns and not st.session_state.df_pptn['año'].isnull().all() else 2023
+    min_year_pptn = int(st.session_state.df_pptn['año'].min()) if 'año' in st.session_state.df_pptn.columns and not st.session_state.df_pptn['año'].isnull().all() else 2000
+    max_year_pptn = int(st.session_state.df_pptn['año'].max()) if 'año' in st.session_state.df_pptn.columns and not st.session_state.df_pptn['año'].isnull().all() else 2023
+    
+    min_year_enso = int(st.session_state.df_enso['año'].min()) if 'año' in st.session_state.df_enso.columns and not st.session_state.df_enso['año'].isnull().all() else 2000
+    max_year_enso = int(st.session_state.df_enso['año'].max()) if 'año' in st.session_state.df_enso.columns and not st.session_state.df_enso['año'].isnull().all() else 2023
+    
+    min_combined_year = min(min_year_pptn, min_year_enso)
+    max_combined_year = max(max_year_pptn, max_year_enso)
+    
     year_range = st.sidebar.slider(
         "Selecciona el Rango de Años para el Análisis:",
-        min_value=min_year,
-        max_value=max_year,
-        value=(min_year, max_year)
+        min_value=min_combined_year,
+        max_value=max_combined_year,
+        value=(min_combined_year, max_combined_year)
     )
 
     # --- Gráfico de serie de tiempo de precipitación anual ---
@@ -280,7 +306,7 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
         st.info("Por favor, selecciona al menos una estación para el análisis ENSO.")
     else:
         # Calcular la precipitación mensual por estación
-        df_pptn_filtered = st.session_state.df_pptn[(st.session_state.df_pptn['año'] >= st.session_state.df_enso['Año'].min()) & (st.session_state.df_pptn['año'] <= st.session_state.df_enso['Año'].max())].copy()
+        df_pptn_filtered = st.session_state.df_pptn[(st.session_state.df_pptn['año'] >= year_range[0]) & (st.session_state.df_pptn['año'] <= year_range[1])].copy()
         
         df_melted_pptn_mensual = df_pptn_filtered.melt(id_vars=['año', 'mes'],
                                                      var_name='Codigo_Estacion',
@@ -293,9 +319,6 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
         pptn_mensual_promedio_estacion = df_melted_pptn_mensual.groupby(['año', 'mes', 'Nombre_Estacion'])['Precipitación'].sum().reset_index()
         
         # Merge de datos ENSO y precipitación
-        st.session_state.df_enso['mes'] = st.session_state.df_enso['mes'].astype(int)
-        st.session_state.df_enso['Año'] = st.session_state.df_enso['Año'].astype(int)
-        
         df_enso_precip = pd.merge(pptn_mensual_promedio_estacion, st.session_state.df_enso, on=['año', 'mes'], how='left')
         
         df_enso_precip_filtered = df_enso_precip[df_enso_precip['Nombre_Estacion'].isin(selected_estaciones)]
@@ -304,7 +327,7 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
             
             # Gráfico de barras de Precipitación vs ENSO
             fig_enso = px.bar(df_enso_precip_filtered,
-                              x='Año',
+                              x='año',
                               y='Precipitación',
                               color='Año_ENOS',
                               facet_col='Nombre_Estacion',
@@ -355,16 +378,20 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
     if not selected_estaciones:
         st.info("Por favor, selecciona estaciones para la animación.")
     else:
+        # Asegurarse de que el DataFrame df_melted existe
+        df_pptn_filtered = st.session_state.df_pptn[(st.session_state.df_pptn['año'] >= year_range[0]) & (st.session_state.df_pptn['año'] <= year_range[1])]
+        df_melted = df_pptn_filtered.melt(id_vars=['Id_Fecha', 'Dia', 'mes-año', 'mes', 'año'],
+                                           var_name='Codigo_Estacion',
+                                           value_name='Precipitación')
+        df_melted = pd.merge(df_melted, st.session_state.df[['Codigo_Estacion', 'Nombre_Estacion', 'Latitud', 'Longitud']],
+                             on='Codigo_Estacion', how='left')
+        
         df_anual_map = df_melted.groupby(['año', 'Nombre_Estacion', 'Latitud', 'Longitud'])['Precipitación'].sum().reset_index()
-        df_melted_map = pd.merge(df_anual_map, st.session_state.df[['Codigo_Estacion', 'Nombre_Estacion', 'Latitud', 'Longitud']],
-                                  on='Nombre_Estacion', how='left')
         
-        df_melted_map.drop_duplicates(subset=['año', 'Nombre_Estacion'], inplace=True)
-        
-        if not df_melted_map.empty:
-            y_range = [df_melted_map['Precipitación'].min(), df_melted_map['Precipitación'].max()]
+        if not df_anual_map.empty:
+            y_range = [df_anual_map['Precipitación'].min(), df_anual_map['Precipitación'].max()]
             fig = px.scatter_mapbox(
-                df_melted_map,
+                df_anual_map,
                 lat="Latitud",
                 lon="Longitud",
                 hover_name="Nombre_Estacion",
@@ -381,7 +408,7 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
             fig.update_layout(
                 mapbox_style="open-street-map",
                 mapbox_zoom=7,
-                mapbox_center={"lat": df_melted_map['Latitud'].mean(), "lon": df_melted_map['Longitud'].mean()},
+                mapbox_center={"lat": df_anual_map['Latitud'].mean(), "lon": df_anual_map['Longitud'].mean()},
             )
             fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
             st.plotly_chart(fig, use_container_width=True)
