@@ -144,6 +144,11 @@ with st.sidebar:
         # Carga de datos ENSO
         uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
         csv_sep_enso = st.text_input("Separador de datos ENSO", value=';')
+        # Validar que el separador no esté vacío
+        if not csv_sep_enso:
+            csv_sep_enso = ';'
+            st.warning("El separador para el archivo ENSO estaba vacío. Se ha usado ';' por defecto.")
+
         if uploaded_enso:
             try:
                 st.session_state.df_enso = pd.read_csv(uploaded_enso, sep=csv_sep_enso, encoding='latin-1')
