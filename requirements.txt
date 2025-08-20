@@ -11,3 +11,4 @@ pyproj
 Shapely
 rtree
 matplotlib
+statsmodels
