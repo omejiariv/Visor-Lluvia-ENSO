@@ -43,9 +43,27 @@ def load_data_from_github():
         st.session_state.df.columns = st.session_state.df.columns.str.strip()
         
         # Cargar DatosPptn_Om.csv
-        st.session_state.df_pptn = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
-        st.session_state.df_pptn.columns = st.session_state.df_pptn.columns.str.strip()
+        df_pptn_raw = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
         
+        # Lógica para manejar múltiples separadores en DatosPptn_Om.csv
+        separators = [';', ',', '\t']
+        found_sep = None
+        for sep in separators:
+            try:
+                df_pptn_raw = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=sep)
+                if 'año' in df_pptn_raw.columns:
+                    found_sep = sep
+                    break
+            except (KeyError, pd.errors.ParserError):
+                continue
+        
+        if found_sep:
+            st.session_state.df_pptn = df_pptn_raw
+            st.session_state.df_pptn.columns = st.session_state.df_pptn.columns.str.strip()
+        else:
+            st.error("No se pudo detectar el separador correcto para el archivo de precipitación. Asegúrate de que contiene la columna 'año'.")
+            st.session_state.df_pptn = None
+            
         # Cargar ENSO_1950-2023.csv (con la codificación y separador corregidos)
         df_enso_raw = pd.read_csv(f"{GITHUB_BASE_URL}ENSO_1950-2023.csv", sep=';', encoding='latin-1')
         df_enso_raw.columns = df_enso_raw.columns.str.strip()
