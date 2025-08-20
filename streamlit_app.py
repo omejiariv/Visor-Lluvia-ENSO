@@ -135,7 +135,8 @@ with st.expander(" 📂 Cargar Datos"):
     uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
     if uploaded_enso:
         try:
-            df_enso = pd.read_csv(uploaded_enso, sep='\t', encoding='latin-1')
+            # Se usa el separador definido por el usuario para leer el archivo ENSO
+            df_enso = pd.read_csv(uploaded_enso, sep=csv_sep, encoding='latin-1')
             df_enso.columns = df_enso.columns.str.strip()
             df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
             st.success("Datos de ENSO cargados exitosamente.")
