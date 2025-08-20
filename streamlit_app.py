@@ -43,25 +43,26 @@ def load_data_from_github():
         st.session_state.df.columns = st.session_state.df.columns.str.strip()
         
         # Cargar DatosPptn_Om.csv
-        df_pptn_raw = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
-        
-        # Lógica para manejar múltiples separadores en DatosPptn_Om.csv
         separators = [';', ',', '\t']
         found_sep = None
+        df_pptn_raw = None
         for sep in separators:
             try:
                 df_pptn_raw = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=sep)
+                # Verifica si la columna 'año' está presente
                 if 'año' in df_pptn_raw.columns:
                     found_sep = sep
                     break
-            except (KeyError, pd.errors.ParserError):
+            except pd.errors.ParserError:
+                # Si falla la lectura con ese separador, prueba el siguiente
                 continue
         
         if found_sep:
             st.session_state.df_pptn = df_pptn_raw
             st.session_state.df_pptn.columns = st.session_state.df_pptn.columns.str.strip()
+            st.success("Datos de precipitación cargados exitosamente con separador: " + found_sep)
         else:
-            st.error("No se pudo detectar el separador correcto para el archivo de precipitación. Asegúrate de que contiene la columna 'año'.")
+            st.error("No se pudo detectar el separador correcto para el archivo de precipitación. Asegúrate de que contiene la columna 'año' y que el separador es ';', ',' o '\t'.")
             st.session_state.df_pptn = None
             
         # Cargar ENSO_1950-2023.csv (con la codificación y separador corregidos)
@@ -229,11 +230,11 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
     st.sidebar.subheader("Configuración de Estaciones y Tiempo")
     
     # Asegurarse de que las columnas están disponibles antes de mostrar el selectbox
-    columnas_df = list(st.session_state.df.columns)
+    columnas_df = list(st.session_state.df.columns) if st.session_state.df is not None else []
     selected_name_col = st.sidebar.selectbox(
         "Selecciona la columna con los nombres de las estaciones:",
         columnas_df,
-        index=columnas_df.index('Nom_Est') if 'Nom_Est' in columnas_df else 0,
+        index=columnas_df.index('Nom_Est') if 'Nom_Est' in columnas_df else (0 if columnas_df else None),
         placeholder="Selecciona una columna..."
     )
     if selected_name_col:
