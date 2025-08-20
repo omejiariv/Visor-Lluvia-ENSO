@@ -157,39 +157,35 @@ with st.sidebar:
         # Carga de datos ENSO
         uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
         csv_sep_enso = st.text_input("Separador de datos ENSO", value=';')
-        if not csv_sep_enso:
-            csv_sep_enso = ';'
-            st.warning("El separador para el archivo ENSO estaba vacío. Se ha usado ';' por defecto.")
-
         if uploaded_enso:
             try:
                 df_enso_raw = pd.read_csv(uploaded_enso, sep=csv_sep_enso, encoding='latin-1')
                 df_enso_raw.columns = df_enso_raw.columns.str.strip()
                 
-                # --- Lógica más robusta para encontrar y renombrar columnas ---
-                col_map = {}
-                for col in df_enso_raw.columns:
-                    if 'año' in col.lower():
-                        col_map[col] = 'año'
-                    elif 'mes' in col.lower():
-                        col_map[col] = 'mes'
-                    elif 'enso' in col.lower():
-                        col_map[col] = 'ENOS'
+                # Definir un mapeo de posibles nombres de columnas a los nombres requeridos
+                column_mapping = {
+                    'año': ['Año', 'año', 'AÑO'],
+                    'mes': ['mes', 'MES'],
+                    'ENOS': ['ENOS', 'enos', 'Ano_ENOS', 'Año_ENOS']
+                }
                 
-                # Renombrar las columnas encontradas
-                st.session_state.df_enso = df_enso_raw.rename(columns=col_map)
-
-                # Verificar si las columnas esenciales existen después de renombrar
-                required_cols = ['año', 'mes', 'ENOS']
+                found_columns = {}
+                for required_col, possible_names in column_mapping.items():
+                    for name in possible_names:
+                        if name in df_enso_raw.columns:
+                            found_columns[name] = required_col
+                            break
+                
+                st.session_state.df_enso = df_enso_raw.rename(columns=found_columns)
+                
+                required_cols = list(column_mapping.keys())
                 if all(col in st.session_state.df_enso.columns for col in required_cols):
                     # Convertir las columnas a tipo int para su correcto manejo
                     st.session_state.df_enso['año'] = st.session_state.df_enso['año'].astype(int)
                     st.session_state.df_enso['mes'] = st.session_state.df_enso['mes'].astype(int)
                     st.session_state.df_enso['ENOS'] = st.session_state.df_enso['ENOS'].str.strip()
-                    
                     st.success("Datos de ENSO cargados exitosamente.")
                 else:
-                    # Si faltan columnas, mostrar un mensaje de error claro
                     missing_cols = [col for col in required_cols if col not in st.session_state.df_enso.columns]
                     st.error(f"Error al leer el archivo ENSO: Faltan las siguientes columnas: {', '.join(missing_cols)}. Asegúrate de que el archivo contiene las columnas 'Año', 'mes' y 'ENOS'.")
                     st.session_state.df_enso = None
