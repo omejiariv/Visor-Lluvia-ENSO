@@ -10,51 +10,52 @@ import zipfile
 import tempfile
 import os
 import io
-import statsmodels.api as sm # Importación corregida para el error de 'statsmodels'
-import numpy as np # Importación de numpy, comúnmente utilizada con statsmodels
+import statsmodels.api as sm
+import numpy as np
+import requests
 
 # Título de la aplicación
 st.set_page_config(layout="wide")
 st.title(' ☔ Visor de Información Geoespacial de Precipitación 🌧️ ')
 st.markdown("---")
 
-# --- Sección para la carga de datos ---
-with st.expander(" 📂 Cargar Datos"):
-    st.write("Carga tu archivo `mapaCV.csv` y los archivos del shapefile (`.shp`, `.shx`, `.dbf`) comprimidos en un único archivo `.zip`.")
-    
-    # Carga de archivos CSV
-    uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv")
-    df = None
-    if uploaded_file_csv:
-        try:
-            df = pd.read_csv(uploaded_file_csv, sep=';')
-            # Limpiar nombres de columnas para evitar errores de espacios en blanco
-            df.columns = df.columns.str.strip() 
-            # Renombrar columnas con los nombres correctos del usuario
-            df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
-            st.success("Archivo CSV cargado exitosamente.")
-        except Exception as e:
-            st.error(f"Error al leer el archivo CSV: {e}")
-            df = None
-    else:
-        try:
-            # Si no se carga un archivo, intenta leer el archivo por defecto
-            df = pd.read_csv('mapaCV.csv', sep=';')
-            df.columns = df.columns.str.strip()
-            df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
-        except FileNotFoundError:
-            st.warning("No se ha cargado un archivo `mapaCV.csv` y el archivo por defecto no se encontró.")
-            df = None
+# URL de los archivos en GitHub (reemplaza con tu propio repositorio si lo tienes)
+GITHUB_BASE_URL = "https://raw.githubusercontent.com/TuUsuario/TuRepositorio/main/"
+SHAPEFILE_URL = "https://github.com/TuUsuario/TuRepositorio/raw/main/shapefile.zip"
 
-    # Carga de archivos del shapefile
-    uploaded_zip = st.file_uploader("Cargar archivos shapefile (.zip)", type="zip")
-    gdf_colombia = None
-    if uploaded_zip:
-        try:
+df = None
+df_pptn = None
+df_enso = None
+gdf_colombia = None
+
+def load_data_from_github():
+    """Carga todos los archivos automáticamente desde un repositorio de GitHub."""
+    global df, df_pptn, df_enso, gdf_colombia
+    
+    st.info("Cargando archivos desde GitHub...")
+    
+    try:
+        # Cargar mapaCV.csv
+        df = pd.read_csv(f"{GITHUB_BASE_URL}mapaCV.csv", sep=';')
+        df.columns = df.columns.str.strip()
+        df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
+        
+        # Cargar DatosPptn_Om.csv
+        df_pptn = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
+        df_pptn.columns = df_pptn.columns.str.strip()
+        
+        # Cargar ENSO_1950-2023.csv (con la codificación corregida)
+        df_enso = pd.read_csv(f"{GITHUB_BASE_URL}ENSO_1950-2023.csv", sep='\t', encoding='latin-1')
+        df_enso.columns = df_enso.columns.str.strip()
+        df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
+        
+        # Cargar shapefile desde el zip
+        response = requests.get(SHAPEFILE_URL)
+        if response.status_code == 200:
             with tempfile.TemporaryDirectory() as tmpdir:
-                zip_path = os.path.join(tmpdir, "uploaded.zip")
+                zip_path = os.path.join(tmpdir, "shapefile.zip")
                 with open(zip_path, "wb") as f:
-                    f.write(uploaded_zip.getbuffer())
+                    f.write(response.content)
                 
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                     zip_ref.extractall(tmpdir)
@@ -63,47 +64,85 @@ with st.expander(" 📂 Cargar Datos"):
                 shp_path = os.path.join(tmpdir, shp_file)
                 
                 gdf_colombia = gpd.read_file(shp_path)
+        else:
+            st.error(f"Error al descargar el shapefile. Código de estado: {response.status_code}")
+            return False
+
+        st.success("¡Archivos cargados automáticamente exitosamente!")
+        return True
+    
+    except Exception as e:
+        st.error(f"Ocurrió un error al cargar los datos desde GitHub: {e}")
+        return False
+
+# --- Sección para la carga de datos ---
+with st.expander(" 📂 Cargar Datos"):
+    st.subheader("Carga Automática desde GitHub")
+    if st.button("Cargar datos por defecto"):
+        load_data_from_github()
+    
+    st.markdown("---")
+    st.subheader("Carga Manual de Archivos")
+    st.write("Carga tu archivo `mapaCV.csv` y los archivos del shapefile (`.shp`, `.shx`, `.dbf`) comprimidos en un único archivo `.zip`.")
+    
+    # Carga de archivos CSV
+    uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv")
+    csv_sep = st.text_input("Separador de CSV", value=';')
+    if uploaded_file_csv:
+        try:
+            df = pd.read_csv(uploaded_file_csv, sep=csv_sep)
+            df.columns = df.columns.str.strip()
+            df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
+            st.success("Archivo CSV cargado exitosamente.")
+        except Exception as e:
+            st.error(f"Error al leer el archivo CSV: {e}")
+            df = None
+    
+    # Carga de archivos del shapefile
+    uploaded_zip = st.file_uploader("Cargar archivos shapefile (.zip)", type="zip")
+    if uploaded_zip:
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                zip_path = os.path.join(tmpdir, "uploaded.zip")
+                with open(zip_path, "wb") as f:
+                    f.write(uploaded_zip.getbuffer())
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(tmpdir)
+                shp_file = [f for f in os.listdir(tmpdir) if f.endswith('.shp')][0]
+                shp_path = os.path.join(tmpdir, shp_file)
+                gdf_colombia = gpd.read_file(shp_path)
                 st.success("Archivos del shapefile cargados exitosamente.")
         except Exception as e:
             st.error(f"Error al leer los archivos del shapefile: {e}")
             gdf_colombia = None
-    else:
-        try:
-            # Si no se carga un archivo, intenta leer el archivo por defecto
-            gdf_colombia = gpd.read_file('shapefile/colombia.shp')
-        except FileNotFoundError:
-            st.warning("No se ha cargado un archivo de shapefile y el archivo por defecto no se encontró.")
-            gdf_colombia = None
-
-# --- Sección para la carga de datos de precipitación y ENSO ---
-with st.expander(" 📈 Cargar Datos de Precipitacion y ENOS"):
+    
+    st.markdown("---")
+    st.subheader("Cargar Datos de Precipitación y ENSO")
     st.write("Cargar archivo de datos diarios de precipitación (DatosPptn_Om.csv) y el archivo ENSO (ENSO_1950-2023.csv).")
 
     # Carga de datos de precipitación
-    uploaded_pptn = st.file_uploader("Cargar archivo de datos diarios de precipitación", type="csv")
-    df_pptn = None
+    uploaded_pptn = st.file_uploader("Cargar archivo de datos diarios de precipitación", type="csv", key="pptn_uploader")
     if uploaded_pptn:
         try:
-            df_pptn = pd.read_csv(uploaded_pptn, sep=';')
-            df_pptn.columns = df_pptn.columns.str.strip() # Limpiar nombres de columnas
+            df_pptn = pd.read_csv(uploaded_pptn, sep=csv_sep)
+            df_pptn.columns = df_pptn.columns.str.strip()
             st.success("Datos de precipitación cargados exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo de precipitación: {e}")
             df_pptn = None
     
     # Carga de datos ENSO
-    uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv")
-    df_enso = None
+    uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
     if uploaded_enso:
         try:
-            df_enso = pd.read_csv(uploaded_enso, sep='\t')
-            df_enso.columns = df_enso.columns.str.strip() # Limpiar nombres de columnas
+            df_enso = pd.read_csv(uploaded_enso, sep='\t', encoding='latin-1')
+            df_enso.columns = df_enso.columns.str.strip()
             df_enso['Año_ENOS'] = df_enso['Año_ENOS'].str.strip()
             st.success("Datos de ENSO cargados exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo ENSO: {e}")
             df_enso = None
-
+    
 # --- Sección de visualización de datos ---
 if df is not None and gdf_colombia is not None and df_pptn is not None and df_enso is not None:
     st.markdown("---")
