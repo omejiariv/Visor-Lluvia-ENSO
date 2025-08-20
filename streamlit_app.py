@@ -38,7 +38,6 @@ def load_data_from_github():
         # Cargar mapaCV.csv
         df = pd.read_csv(f"{GITHUB_BASE_URL}mapaCV.csv", sep=';')
         df.columns = df.columns.str.strip()
-        df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
         
         # Cargar DatosPptn_Om.csv
         df_pptn = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
@@ -92,7 +91,6 @@ with st.expander(" 📂 Cargar Datos"):
         try:
             df = pd.read_csv(uploaded_file_csv, sep=csv_sep)
             df.columns = df.columns.str.strip()
-            df = df.rename(columns={'Mpio': 'municipio', 'NOMBRE_VER': 'vereda'})
             st.success("Archivo CSV cargado exitosamente.")
         except Exception as e:
             st.error(f"Error al leer el archivo CSV: {e}")
@@ -149,6 +147,28 @@ if df is not None and gdf_colombia is not None and df_pptn is not None and df_en
     st.markdown("---")
     st.header('📊 Visualización y Análisis de Datos')
     
+    # Sección para seleccionar la columna de nombres de estación
+    st.subheader("Configuración de Estaciones")
+    try:
+        # Asegurarse de que las columnas están disponibles antes de mostrar el selectbox
+        if 'Nombre_Estacion' not in df.columns:
+            columnas_df = list(df.columns)
+            selected_name_col = st.selectbox(
+                "Selecciona la columna que contiene los nombres de las estaciones:",
+                columnas_df,
+                index=None,
+                placeholder="Selecciona una columna..."
+            )
+            if selected_name_col:
+                df = df.rename(columns={selected_name_col: 'Nombre_Estacion'})
+                st.success(f"La columna '{selected_name_col}' ha sido asignada como 'Nombre_Estacion'.")
+            else:
+                st.warning("Por favor, selecciona la columna de nombres de estación para continuar.")
+                st.stop()
+    except KeyError:
+        st.error("Ha ocurrido un error al intentar configurar las columnas. Por favor, revisa tus archivos CSV.")
+        st.stop()
+        
     # Filtro de estaciones
     estaciones = sorted(df['Nombre_Estacion'].unique())
     selected_estaciones = st.multiselect("Selecciona Estaciones:", estaciones, default=estaciones[:5])
