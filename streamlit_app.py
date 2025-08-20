@@ -92,19 +92,19 @@ with st.sidebar:
         st.write("Carga tu archivo `mapaCV.csv` y los archivos del shapefile (`.shp`, `.shx`, `.dbf`) comprimidos en un único archivo `.zip`.")
         
         # Carga de archivos CSV
-        uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv")
-        csv_sep = st.text_input("Separador de CSV", value=';')
+        uploaded_file_csv = st.file_uploader("Cargar archivo .csv (mapaCV.csv)", type="csv", key="csv_mapa")
+        csv_sep_mapa = st.text_input("Separador del archivo mapaCV.csv", value=';')
         if uploaded_file_csv:
             try:
-                st.session_state.df = pd.read_csv(uploaded_file_csv, sep=csv_sep)
+                st.session_state.df = pd.read_csv(uploaded_file_csv, sep=csv_sep_mapa)
                 st.session_state.df.columns = st.session_state.df.columns.str.strip()
-                st.success("Archivo CSV cargado exitosamente.")
+                st.success("Archivo mapaCV.csv cargado exitosamente.")
             except Exception as e:
                 st.error(f"Error al leer el archivo CSV: {e}")
                 st.session_state.df = None
         
         # Carga de archivos del shapefile
-        uploaded_zip = st.file_uploader("Cargar archivos shapefile (.zip)", type="zip")
+        uploaded_zip = st.file_uploader("Cargar archivos shapefile (.zip)", type="zip", key="shp_zip")
         if uploaded_zip:
             try:
                 with tempfile.TemporaryDirectory() as tmpdir:
@@ -123,13 +123,13 @@ with st.sidebar:
         
         st.markdown("---")
         st.subheader("Cargar Datos de Precipitación y ENSO")
-        st.write("Cargar archivo de datos diarios de precipitación (DatosPptn_Om.csv) y el archivo ENSO (ENSO_1950-2023.csv).")
-
+        
         # Carga de datos de precipitación
         uploaded_pptn = st.file_uploader("Cargar archivo de datos diarios de precipitación", type="csv", key="pptn_uploader")
+        csv_sep_pptn = st.text_input("Separador de datos de precipitación", value=';')
         if uploaded_pptn:
             try:
-                st.session_state.df_pptn = pd.read_csv(uploaded_pptn, sep=csv_sep)
+                st.session_state.df_pptn = pd.read_csv(uploaded_pptn, sep=csv_sep_pptn)
                 st.session_state.df_pptn.columns = st.session_state.df_pptn.columns.str.strip()
                 st.success("Datos de precipitación cargados exitosamente.")
             except Exception as e:
@@ -138,10 +138,10 @@ with st.sidebar:
         
         # Carga de datos ENSO
         uploaded_enso = st.file_uploader("Cargar archivo de datos ENSO", type="csv", key="enso_uploader")
+        csv_sep_enso = st.text_input("Separador de datos ENSO", value='\t')
         if uploaded_enso:
             try:
-                # Se usa el separador definido por el usuario para leer el archivo ENSO
-                st.session_state.df_enso = pd.read_csv(uploaded_enso, sep=csv_sep, encoding='latin-1')
+                st.session_state.df_enso = pd.read_csv(uploaded_enso, sep=csv_sep_enso, encoding='latin-1')
                 st.session_state.df_enso.columns = st.session_state.df_enso.columns.str.strip()
                 st.session_state.df_enso['Año_ENOS'] = st.session_state.df_enso['Año_ENOS'].str.strip()
                 st.success("Datos de ENSO cargados exitosamente.")
@@ -157,45 +157,42 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
     # Sección para seleccionar la columna de nombres de estación y los años
     st.sidebar.subheader("Configuración de Estaciones y Tiempo")
     
-    try:
-        # Asegurarse de que las columnas están disponibles antes de mostrar el selectbox
-        columnas_df = list(st.session_state.df.columns)
-        selected_name_col = st.sidebar.selectbox(
-            "Selecciona la columna con los nombres de las estaciones:",
-            columnas_df,
-            index=columnas_df.index('Nom_Est') if 'Nom_Est' in columnas_df else None,
-            placeholder="Selecciona una columna..."
-        )
-        if selected_name_col:
-            st.session_state.df = st.session_state.df.rename(columns={selected_name_col: 'Nombre_Estacion'})
-            st.sidebar.success(f"La columna '{selected_name_col}' ha sido asignada como 'Nombre_Estacion'.")
-        else:
-            st.warning("Por favor, selecciona la columna de nombres de estación para continuar.")
-            st.stop()
-            
-        columnas_pptn = list(st.session_state.df_pptn.columns)
-        selected_year_col = st.sidebar.selectbox(
-            "Selecciona la columna con el año (Precipitación):",
-            columnas_pptn,
-            index=columnas_pptn.index('año') if 'año' in columnas_pptn else None,
-            placeholder="Selecciona una columna..."
-        )
-        if selected_year_col:
-            st.session_state.df_pptn = st.session_state.df_pptn.rename(columns={selected_year_col: 'año'})
-        
-        selected_month_col = st.sidebar.selectbox(
-            "Selecciona la columna con el mes (Precipitación):",
-            columnas_pptn,
-            index=columnas_pptn.index('mes') if 'mes' in columnas_pptn else None,
-            placeholder="Selecciona una columna..."
-        )
-        if selected_month_col:
-            st.session_state.df_pptn = st.session_state.df_pptn.rename(columns={selected_month_col: 'mes'})
-
-    except KeyError:
-        st.error("Ha ocurrido un error al intentar configurar las columnas. Por favor, revisa tus archivos CSV.")
+    # Asegurarse de que las columnas están disponibles antes de mostrar el selectbox
+    columnas_df = list(st.session_state.df.columns)
+    selected_name_col = st.sidebar.selectbox(
+        "Selecciona la columna con los nombres de las estaciones:",
+        columnas_df,
+        index=columnas_df.index('Nom_Est') if 'Nom_Est' in columnas_df else None,
+        placeholder="Selecciona una columna..."
+    )
+    if selected_name_col:
+        st.session_state.df = st.session_state.df.rename(columns={selected_name_col: 'Nombre_Estacion'})
+        st.sidebar.success(f"La columna '{selected_name_col}' ha sido asignada como 'Nombre_Estacion'.")
+    else:
+        st.warning("Por favor, selecciona la columna de nombres de estación para continuar.")
         st.stop()
         
+    columnas_pptn = list(st.session_state.df_pptn.columns)
+    selected_year_col = st.sidebar.selectbox(
+        "Selecciona la columna con el año (Precipitación):",
+        columnas_pptn,
+        index=columnas_pptn.index('año') if 'año' in columnas_pptn else None,
+        placeholder="Selecciona una columna..."
+    )
+    selected_month_col = st.sidebar.selectbox(
+        "Selecciona la columna con el mes (Precipitación):",
+        columnas_pptn,
+        index=columnas_pptn.index('mes') if 'mes' in columnas_pptn else None,
+        placeholder="Selecciona una columna..."
+    )
+
+    if selected_year_col and selected_month_col:
+        # Renombrar las columnas ANTES de usarlas
+        st.session_state.df_pptn = st.session_state.df_pptn.rename(columns={selected_year_col: 'año', selected_month_col: 'mes'})
+    else:
+        st.warning("Por favor, selecciona las columnas de año y mes para continuar.")
+        st.stop()
+
     # Filtro de estaciones
     estaciones = sorted(st.session_state.df['Nombre_Estacion'].unique())
     selected_estaciones = st.sidebar.multiselect("Selecciona Estaciones:", estaciones, default=estaciones[:5])
