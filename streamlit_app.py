@@ -73,16 +73,6 @@ def load_geospatial_data(file_type, file_url):
             
             # Leer el shapefile con geopandas
             gdf = gpd.read_file(shp_path)
-            
-            # Asegurar que las coordenadas estén en WGS84 (EPSG:4326)
-            if gdf.crs and gdf.crs.name != 'WGS 84':
-                st.info(f"Convirtiendo CRS de {gdf.crs.name} a WGS84...")
-                gdf = gdf.to_crs(epsg=4326)
-            
-            # Crear las columnas de latitud y longitud
-            gdf['Longitud'] = gdf.geometry.x
-            gdf['Latitud'] = gdf.geometry.y
-            
             return gdf
 
     except Exception as e:
@@ -126,37 +116,16 @@ def preprocess_precipitation_data(df_ppt):
 # --- Carga de datos principales ---
 try:
     precip_file_content = open("DatosPptnmes_ENSO.csv", "rb").read()
+    stations_file_content = open("mapaCVENSO.csv", "rb").read()
     
     df_precip_wide = pd.read_csv(io.StringIO(precip_file_content.decode('utf-8')), sep=';', header=0)
     df_precip = preprocess_precipitation_data(df_precip_wide)
     
-    # Cargar los datos de las estaciones directamente del shapefile
-    gdf_estaciones = load_geospatial_data('local', 'mapaCV.zip')
+    df_estaciones = pd.read_csv(io.StringIO(stations_file_content.decode('utf-8')), sep=';', header=0)
     
-    # Renombrar columnas para la unión y la estandarización
-    if gdf_estaciones is not None:
-        # Renombrar 'Id_estacio' a 'Id_estacion' para unificar con el otro DataFrame
-        if 'Id_estacio' in gdf_estaciones.columns:
-            gdf_estaciones.rename(columns={'Id_estacio': 'Id_estacion'}, inplace=True)
-        # Renombrar 'Nom_Est' a 'Nom_Est_shp'
-        if 'Nom_Est' in gdf_estaciones.columns:
-            gdf_estaciones.rename(columns={'Nom_Est': 'Nom_Est_shp'}, inplace=True)
-        # Renombrar 'MUNICIPIO' a 'municipio' si existe
-        if 'MUNICIPIO' in gdf_estaciones.columns:
-            gdf_estaciones.rename(columns={'MUNICIPIO': 'municipio'}, inplace=True)
+    # Convertir 'Id_estacion' a string para asegurar la compatibilidad en la unión
+    df_estaciones['Id_estacion'] = df_estaciones['Id_estacion'].astype(str)
 
-        # Tomar los datos relevantes de las estaciones del shapefile
-        # Se usa una lista de columnas y se verifica su existencia
-        required_cols = ['Id_estacion', 'Nom_Est_shp', 'municipio', 'Latitud', 'Longitud']
-        available_cols = [col for col in required_cols if col in gdf_estaciones.columns]
-
-        if len(available_cols) < 5:
-            st.error("Error en las columnas del shapefile. Faltan una o más columnas clave.")
-            st.stop()
-        
-        df_estaciones_shp = gdf_estaciones[available_cols]
-        df_estaciones_shp['Id_estacion'] = df_estaciones_shp['Id_estacion'].astype(str)
-    
     # ENSO data is missing, so we load the dummy data
     df_enso = load_enso_data()
 
@@ -167,10 +136,14 @@ except Exception as e:
     st.error(f"Error inesperado al cargar los archivos. Por favor, verifique los nombres de las columnas y los delimitadores. Error: {e}")
     st.stop()
 
-if df_precip is not None and not df_precip.empty and gdf_estaciones is not None and not gdf_estaciones.empty:
+if df_precip is not None and not df_precip.empty and df_estaciones is not None and not df_estaciones.empty:
     # --- Unión de los datos de precipitación y estaciones ---
-    df_completo = pd.merge(df_precip, df_estaciones_shp, on='Id_estacion', how='left')
+    df_completo = pd.merge(df_precip, df_estaciones, on='Id_estacion', how='left')
     df_completo = df_completo.dropna(subset=['Latitud', 'Longitud'])
+    
+    # Ajustar coordenadas (geopandas usa Longitud, Latitud)
+    df_completo['Longitud'] = df_completo['Longitud'] / 1000000
+    df_completo['Latitud'] = df_completo['Latitud'] / 1000000
     
     # Preparación de datos para el análisis ENSO
     df_precip_mensual_promedio = df_completo.groupby('Id_Fecha')['Precipitacion_mm'].mean().reset_index()
@@ -200,7 +173,7 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
         selected_municipios = st.multiselect("Seleccionar Municipios", municipios, default=municipios)
         
         # Filtro de estaciones
-        all_stations = sorted(df_completo['Nom_Est_shp'].dropna().unique())
+        all_stations = sorted(df_completo['Nom_Est'].dropna().unique())
         selected_stations = st.multiselect("Seleccionar Estaciones", all_stations, default=[])
     
     # --- Lógica de filtrado de datos ---
@@ -211,7 +184,7 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
     ]
     
     if selected_stations:
-        df_filtered = df_filtered[df_filtered['Nom_Est_shp'].isin(selected_stations)]
+        df_filtered = df_filtered[df_filtered['Nom_Est'].isin(selected_stations)]
     
     if not df_filtered.empty:
         st.success(f"Datos cargados y filtrados. Mostrando {len(df_filtered['Id_estacion'].unique())} estaciones.")
@@ -222,26 +195,26 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
         
         # Gráfico de Serie de Tiempo Anual
         st.header("1. Serie de Tiempo Anual de Precipitación")
-        df_anual = df_filtered.groupby(['Año', 'Id_estacion', 'Nom_Est_shp'])['Precipitacion_mm'].sum().reset_index()
+        df_anual = df_filtered.groupby(['Año', 'Nom_Est'])['Precipitacion_mm'].sum().reset_index()
         df_anual['Fecha_Anual'] = pd.to_datetime(df_anual['Año'], format='%Y')
         
         chart_anual = alt.Chart(df_anual).mark_line(point=True).encode(
             x=alt.X('Fecha_Anual:T', axis=alt.Axis(title='Año')),
             y=alt.Y('Precipitacion_mm', title='Precipitación Anual (mm)'),
-            color='Nom_Est_shp',
-            tooltip=['Fecha_Anual:T', 'Nom_Est_shp', 'Precipitacion_mm']
+            color='Nom_Est',
+            tooltip=['Fecha_Anual:T', 'Nom_Est', 'Precipitacion_mm']
         ).interactive()
         st.altair_chart(chart_anual, use_container_width=True)
         
         # Gráfico de Serie de Tiempo Mensual
         st.header("2. Serie de Tiempo Mensual de Precipitación")
-        df_mensual = df_filtered.groupby(['Id_Fecha', 'Nom_Est_shp'])['Precipitacion_mm'].sum().reset_index()
+        df_mensual = df_filtered.groupby(['Id_Fecha', 'Nom_Est'])['Precipitacion_mm'].sum().reset_index()
         
         chart_mensual = alt.Chart(df_mensual).mark_line(point=True).encode(
             x=alt.X('Id_Fecha:T', axis=alt.Axis(title='Fecha')),
             y=alt.Y('Precipitacion_mm', title='Precipitación Mensual (mm)'),
-            color='Nom_Est_shp',
-            tooltip=['Id_Fecha:T', 'Nom_Est_shp', 'Precipitacion_mm']
+            color='Nom_Est',
+            tooltip=['Id_Fecha:T', 'Nom_Est', 'Precipitacion_mm']
         ).interactive()
         st.altair_chart(chart_mensual, use_container_width=True)
         
@@ -250,15 +223,12 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
         if not df_filtered.empty:
             map_data = df_filtered.drop_duplicates(subset=['Id_estacion'])
             
-            # Calcular el centro del mapa
-            center_lat = map_data['Latitud'].mean()
-            center_lon = map_data['Longitud'].mean()
-            m = folium.Map(location=[center_lat, center_lon], zoom_start=6)
+            m = folium.Map(location=[map_data['Latitud'].mean(), map_data['Longitud'].mean()], zoom_start=6)
             
             for _, row in map_data.iterrows():
                 folium.Marker(
                     location=[row['Latitud'], row['Longitud']],
-                    popup=f"Estación: {row['Nom_Est_shp']}<br>Municipio: {row['municipio']}<br>Precipitación: {row['Precipitacion_mm']:.2f} mm"
+                    popup=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Precipitación: {row['Precipitacion_mm']:.2f} mm"
                 ).add_to(m)
             
             folium_static(m)
@@ -267,8 +237,13 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
             
         # Mapa Animado (Plotly)
         st.header("4. Mapa Animado de Precipitación Anual")
-        df_anual_plot = pd.merge(df_anual, df_estaciones_shp[['Id_estacion', 'Longitud', 'Latitud']], on='Id_estacion', how='left')
+        df_anual_plot = df_anual.copy()
+        df_anual_plot = pd.merge(df_anual_plot, df_estaciones[['Id_estacion', 'Longitud', 'Latitud']], on='Id_estacion', how='left')
         
+        # Corrección de coordenadas para el mapa animado
+        df_anual_plot['Longitud'] = df_anual_plot['Longitud'].astype(float) / 1000000
+        df_anual_plot['Latitud'] = df_anual_plot['Latitud'].astype(float) / 1000000
+
         fig_mapa_anual = px.scatter_mapbox(
             df_anual_plot,
             lat='Latitud',
@@ -276,7 +251,7 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
             color='Precipitacion_mm',
             size='Precipitacion_mm',
             animation_frame='Año',
-            hover_name='Nom_Est_shp',
+            hover_name='Nom_Est',
             hover_data={'Precipitacion_mm': ':.2f'},
             color_continuous_scale=px.colors.sequential.Viridis,
             mapbox_style="carto-positron",
