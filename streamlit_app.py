@@ -145,11 +145,11 @@ try:
     df_precip_mensual = df_precip_mensual.rename(columns={'Id_Fecha': 'Fecha'})
     
     df_precip_mensual['Fecha'] = pd.to_datetime(df_precip_mensual['Fecha'], format='%d/%m/%Y')
-    df_precip_mensual['Year'] = df_precip_mensual['Fecha'].dt.year
+    df_precip_mensual['Año'] = df_precip_mensual['Fecha'].dt.año
     df_precip_mensual['Mes'] = df_precip_mensual['Fecha'].dt.month
     
     # Derretir el dataframe para tener un formato largo
-    df_long = df_precip_mensual.melt(id_vars=['Fecha', 'Year', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
+    df_long = df_precip_mensual.melt(id_vars=['Fecha', 'Año', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
     
     # Eliminar filas con valores 'n.d' y convertir la columna de precipitación a float
     df_long['Precipitation'] = df_long['Precipitation'].replace('n.d', np.nan).astype(float)
@@ -161,9 +161,9 @@ except Exception as e:
 
 # --- Preprocesamiento de datos ENSO ---
 try:
-    df_enso['Year'] = df_enso['Year'].astype(int)
+    df_enso['Año'] = df_enso['Año'].astype(int)
     # Crear una columna de fecha para la fusión
-    df_enso['fecha_merge'] = pd.to_datetime(df_enso['Year'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
+    df_enso['fecha_merge'] = pd.to_datetime(df_enso['Año'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
 
 except Exception as e:
     st.error(f"Error en el preprocesamiento del archivo ENSO: {e}")
@@ -183,7 +183,7 @@ selected_stations = st.sidebar.multiselect(
 
 # Filtro de años
 años_disponibles = sorted(df_precip_anual.columns[2:54].astype(int).tolist())
-year_range = st.sidebar.slider(
+Año_range = st.sidebar.slider(
     "Seleccione el rango de años",
     min_value=min(años_disponibles),
     max_value=max(años_disponibles),
@@ -221,8 +221,8 @@ df_precip_anual_filtered_melted['Año'] = df_precip_anual_filtered_melted['Año'
 
 # Filtrar por el rango de años
 df_precip_anual_filtered_melted = df_precip_anual_filtered_melted[
-    (df_precip_anual_filtered_melted['Año'] >= year_range[0]) &
-    (df_precip_anual_filtered_melted['Año'] <= year_range[1])
+    (df_precip_anual_filtered_melted['Año'] >= Año_range[0]) &
+    (df_precip_anual_filtered_melted['Año'] <= Año_range[1])
 ]
 
 if not df_precip_anual_filtered_melted.empty:
@@ -241,14 +241,14 @@ else:
 # Gráfico de Serie de Tiempo Mensual
 st.subheader("Precipitación Mensual Total (mm)")
 # Agrupar los datos mensuales por año, mes y estación
-df_monthly_total = df_long.groupby(['Nom_Est', 'Year', 'Mes'])['Precipitation'].sum().reset_index()
-df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['Year'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
+df_monthly_total = df_long.groupby(['Nom_Est', 'Año', 'Mes'])['Precipitation'].sum().reset_index()
+df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['Año'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
 
 # Filtrar por estaciones y años
 df_monthly_filtered = df_monthly_total[
     (df_monthly_total['Nom_Est'].isin(filtered_stations)) &
-    (df_monthly_total['Year'] >= year_range[0]) &
-    (df_monthly_total['Year'] <= year_range[1])
+    (df_monthly_total['Año'] >= Año_range[0]) &
+    (df_monthly_total['Año'] <= Año_range[1])
 ]
 
 if not df_monthly_filtered.empty:
