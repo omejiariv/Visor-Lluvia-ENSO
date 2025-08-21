@@ -39,13 +39,13 @@ def load_data_from_github():
     
     try:
         # Cargar mapaCV.csv
-        st.session_state.df = pd.read_csv(f"{GITHUB_BASE_URL}mapaCV.csv", sep=';')
+        st.session_state.df = pd.read_csv(f"{GITHUB_BASE_URL}mapaCV.csv", sep=',')
         st.session_state.df.columns = st.session_state.df.columns.str.strip()
         st.success("Archivo mapaCV.csv cargado exitosamente.")
         
         # Cargar DatosPptn_Om.csv
         try:
-            df_pptn_raw = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=';')
+            df_pptn_raw = pd.read_csv(f"{GITHUB_BASE_URL}DatosPptn_Om.csv", sep=',')
             df_pptn_raw.columns = df_pptn_raw.columns.str.strip()
             if 'año' in df_pptn_raw.columns:
                 st.session_state.df_pptn = df_pptn_raw
@@ -55,7 +55,7 @@ def load_data_from_github():
                 st.session_state.df_pptn = None
         except Exception as e:
             st.error(f"Error al leer el archivo de precipitación: {e}")
-            st.info("Es posible que el separador no sea ';'. Por favor, prueba a cargarlo manualmente o revisa el archivo.")
+            st.info("Es posible que el separador no sea ','. Por favor, prueba a cargarlo manualmente o revisa el archivo.")
             st.session_state.df_pptn = None
             
         # Cargar ENSO_1950-2023.csv (con la codificación y separador corregidos)
@@ -67,8 +67,8 @@ def load_data_from_github():
         column_mapping = {
             'año': ['Año', 'año', 'AÑO'],
             'mes': ['mes', 'MES'],
-            'ENSO': ['ENSO', 'enos', 'Ano_ENOS', 'Año_ENOS'],
-            'Anomalía ONI': ['Anomalía ONI', 'Anomalía_ONI', 'ONI_IndOceanico']
+            'ENSO': ['ENSO', 'Ano_ENSO', 'Año_ENSO'],
+            'Anomalía_ONI': ['Anomalía ONI', 'Anomalia_ONI', 'ONI_IndOceanico']
         }
         
         found_columns = {}
@@ -192,7 +192,7 @@ with st.sidebar:
                 column_mapping = {
                     'año': ['Año', 'año', 'AÑO'],
                     'mes': ['mes', 'MES'],
-                    'ENSO': ['ENSO', 'enos', 'Ano_ENOS', 'Año_ENOS'],
+                    'ENSO': ['ENSO', 'ENSO', 'Ano_ENSO', 'Año_ENSO'],
                     'Anomalía ONI': ['Anomalía ONI', 'Anomalía_ONI', 'ONI_IndOceanico']
                 }
                 
@@ -299,7 +299,7 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
     st.subheader("Precipitación Anual por Estación")
     
     if not selected_estaciones:
-        st.info("Por favor, selecciona al menos una estación para visualizar los datos.")
+        st.info("Por favor, selecciona al mENSO una estación para visualizar los datos.")
     else:
         df_pptn_filtered = st.session_state.df_pptn[(st.session_state.df_pptn['año'] >= year_range[0]) & (st.session_state.df_pptn['año'] <= year_range[1])]
         
@@ -358,7 +358,7 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
         st.subheader("Análisis de la Relación entre Precipitación y ENSO")
         
         if not selected_estaciones:
-            st.info("Por favor, selecciona al menos una estación para el análisis ENSO.")
+            st.info("Por favor, selecciona al mENSO una estación para el análisis ENSO.")
         else:
             # Calcular la precipitación mensual por estación
             df_pptn_filtered = st.session_state.df_pptn[(st.session_state.df_pptn['año'] >= year_range[0]) & (st.session_state.df_pptn['año'] <= year_range[1])].copy()
