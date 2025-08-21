@@ -44,7 +44,7 @@ def load_enso_data():
     """
     Carga datos de ENSO. Se utiliza una plantilla si el archivo no está disponible.
     """
-    st.warning("El archivo 'ENSO_1950_2023.csv' no se encontró. Se usará un DataFrame de ejemplo. Por favor, reemplace esta sección con su archivo real para un análisis completo.")
+    st.warning("El archivo 'ENSO_1950-2023.csv' no se encontró. Se usará un DataFrame de ejemplo. Por favor, reemplace esta sección con su archivo real para un análisis completo.")
     enso_data = {
         'Id_Fecha': pd.to_datetime(pd.date_range(start='1970-01-01', end='2021-12-01', freq='MS').strftime('%Y-%m-%d')),
         'Anomalia_ONI': np.random.uniform(-2.5, 2.5, size=624)
@@ -86,11 +86,10 @@ def preprocess_precipitation_data(df_ppt):
     Transforma el DataFrame de precipitación del formato 'ancho' al 'largo'
     y realiza la limpieza de datos.
     """
-    # Mapeo de columnas para asegurar la compatibilidad
-    column_mapping = {
-        'Id_Fecha': 'Id_Fecha',
-    }
-    
+    if 'Id_Fecha' not in df_ppt.columns:
+        st.error("Error: La columna 'Id_Fecha' no se encuentra en el archivo de precipitación.")
+        return pd.DataFrame()
+
     # Identificar columnas de estación
     station_columns = [col for col in df_ppt.columns if col != 'Id_Fecha']
     
@@ -105,6 +104,9 @@ def preprocess_precipitation_data(df_ppt):
     df_long['Id_Fecha'] = pd.to_datetime(df_long['Id_Fecha'], format='%d/%m/%Y', errors='coerce')
     df_long = df_long.dropna(subset=['Id_Fecha'])
     
+    # Convertir 'Id_estacion' a string para asegurar la compatibilidad con el otro DataFrame
+    df_long['Id_estacion'] = df_long['Id_estacion'].astype(str)
+
     # Extraer año y mes
     df_long['Año'] = df_long['Id_Fecha'].dt.year
     df_long['Mes'] = df_long['Id_Fecha'].dt.month
@@ -116,10 +118,10 @@ def preprocess_precipitation_data(df_ppt):
 def load_all_data(precip_file, stations_file, enso_file):
     """Carga y procesa todos los datos necesarios para la aplicación."""
     try:
-        df_precip_wide = pd.read_csv(precip_file, sep=';')
+        df_precip_wide = pd.read_csv(precip_file, sep=';', header=0)
         df_precip = preprocess_precipitation_data(df_precip_wide)
         
-        df_estaciones = pd.read_csv(stations_file, sep=';')
+        df_estaciones = pd.read_csv(stations_file, sep=';', header=0)
         df_enso = load_enso_data() # Llama a la función de carga de ENSO
         
         return df_precip, df_estaciones, df_enso
@@ -128,20 +130,29 @@ def load_all_data(precip_file, stations_file, enso_file):
         return None, None, None
 
 # --- Carga de los archivos cargados por el usuario ---
-precip_file_content = open("DatosPptnmes_ENSO.csv", "rb").read()
-stations_file_content = open("mapaCVENSO.csv", "rb").read()
+try:
+    precip_file_content = open("DatosPptnmes_ENSO.csv", "rb").read()
+    stations_file_content = open("mapaCVENSO.csv", "rb").read()
+    
+    df_precip_wide = pd.read_csv(io.StringIO(precip_file_content.decode('utf-8')), sep=';', header=0)
+    df_precip = preprocess_precipitation_data(df_precip_wide)
+    
+    df_estaciones = pd.read_csv(io.StringIO(stations_file_content.decode('utf-8')), sep=';', header=0)
+    df_estaciones['estacion'] = df_estaciones['estacion'].astype(str) # Conversión a string
+    
+    # ENSO data is missing, so we load the dummy data
+    df_enso = load_enso_data()
 
-df_precip_wide = pd.read_csv(io.StringIO(precip_file_content.decode('utf-8')), sep=';')
-df_precip = preprocess_precipitation_data(df_precip_wide)
+except FileNotFoundError as e:
+    st.error(f"Error: No se encontró el archivo necesario. Asegúrese de que todos los archivos CSV y el archivo .zip están en la misma carpeta que el script. Error: {e}")
+    st.stop()
+except Exception as e:
+    st.error(f"Error inesperado al cargar los archivos: {e}")
+    st.stop()
 
-df_estaciones = pd.read_csv(io.StringIO(stations_file_content.decode('utf-8')), sep=';')
-
-# ENSO data is missing, so we load the dummy data
-df_enso = load_enso_data()
-
-if df_precip is not None and df_estaciones is not None:
+if df_precip is not None and not df_precip.empty and df_estaciones is not None and not df_estaciones.empty:
     # --- Unión de los datos de precipitación y estaciones ---
-    df_completo = pd.merge(df_precip, df_estaciones, on='Id_estacion', how='left')
+    df_completo = pd.merge(df_precip, df_estaciones, left_on='Id_estacion', right_on='estacion', how='left')
     df_completo = df_completo.dropna(subset=['Latitud', 'Longitud'])
     
     # Ajustar coordenadas (geopandas usa Longitud, Latitud)
