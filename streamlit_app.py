@@ -131,19 +131,16 @@ try:
     df_precip = preprocess_precipitation_data(df_precip_wide)
     
     # Cargar los datos de las estaciones directamente del shapefile
-    gdf_estaciones = load_geospatial_data('local', 'mapaCV.zip')
+gdf_estaciones = load_geospatial_data('local', 'mapaCV.zip')
     
-    # Renombrar columnas para la unión y la estandarización
-    if gdf_estaciones is not None:
-        # Renombrar 'Id_estacio' a 'Id_estacion' para unificar con el otro DataFrame
-        if 'Id_estacio' in gdf_estaciones.columns:
-            gdf_estaciones.rename(columns={'Id_estacio': 'Id_estacion'}, inplace=True)
-        # Renombrar 'Nom_Est' a 'Nom_Est_shp'
-        if 'Nom_Est' in gdf_estaciones.columns:
-            gdf_estaciones.rename(columns={'Nom_Est': 'Nom_Est_shp'}, inplace=True)
-        # Renombrar 'MUNICIPIO' a 'municipio' si existe
-        if 'MUNICIPIO' in gdf_estaciones.columns:
-            gdf_estaciones.rename(columns={'MUNICIPIO': 'municipio'}, inplace=True)
+# Renombrar columnas para la unión y la estandarización
+if gdf_estaciones is not None:
+    # Renombra el campo con el nombre real a 'Id_estacion'
+    gdf_estaciones.rename(columns={'Id_estac': 'Id_estacion'}, inplace=True)
+    # Renombra el campo con el nombre real a 'Nom_Est_shp'
+    gdf_estaciones.rename(columns={'Nom_Est': 'Nom_Est_shp'}, inplace=True)
+    # Renombra el campo con el nombre real a 'municipio'
+    gdf_estaciones.rename(columns={'NOMBRE_MUN': 'municipio'}, inplace=True)
 
         # Tomar los datos relevantes de las estaciones del shapefile
         # Se usa una lista de columnas y se verifica su existencia
