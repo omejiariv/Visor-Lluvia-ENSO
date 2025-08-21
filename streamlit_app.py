@@ -36,17 +36,16 @@ def load_data(file_type, file_path, sep=';'):
     """
     try:
         if file_type == 'local':
-            if file_path.endswith('.csv'):
-                # Modificación aquí: Se añade quotechar='"'
+            # Corrección aquí: se usa file_path.name para obtener el nombre del archivo
+            if file_path.name.endswith('.csv'):
                 return pd.read_csv(file_path, sep=sep, quotechar='"')
             else:
-                st.error(f"Tipo de archivo no soportado: {file_path}")
+                st.error(f"Tipo de archivo no soportado: {file_path.name}")
                 return None
         elif file_type == 'github':
             response = requests.get(file_path)
             if response.status_code == 200:
                 content = io.StringIO(response.text)
-                # Modificación aquí: Se añade quotechar='"'
                 return pd.read_csv(content, sep=sep, quotechar='"')
             else:
                 st.error(f"Error al descargar el archivo de GitHub: {response.status_code}")
