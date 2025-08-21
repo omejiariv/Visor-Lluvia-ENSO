@@ -130,7 +130,7 @@ with st.expander("📂 Cargar Datos"):
         st.info("Cargando archivos de ejemplo de GitHub...")
         try:
             df_estaciones = load_data('github', GITHUB_BASE_URL + 'mapaCV.csv', sep=';')
-            df_pptn = load_data('github', GITHUB_BASE_URL + 'DatosPptnmes_Om.csv', sep=';')
+            df_pptn = load_data('github', GITHUB_BASE_URL + 'DatosPptnmes_ENSO.csv', sep=';')
             df_enso = load_data('github', GITHUB_BASE_URL + 'ENSO_1950_2023.csv', sep=';')
             gdf_estaciones = load_geospatial_data('github', SHAPEFILE_URL, 'mapaCV.shp', '.zip')
             if all([df_estaciones is not None, df_pptn is not None, df_enso is not None, gdf_estaciones is not None]):
