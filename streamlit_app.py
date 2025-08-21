@@ -135,11 +135,11 @@ try:
     
     # Renombrar columnas para la unión
     if gdf_estaciones is not None:
-        gdf_estaciones.rename(columns={'Id_estacion': 'Id_estacion_shp', 'Nom_Est': 'Nom_Est_shp'}, inplace=True)
+        gdf_estaciones.rename(columns={'Id_estacion': 'Id_estacio', 'Nom_Est': 'Nom_Est_shp'}, inplace=True)
         # Tomar los datos relevantes de las estaciones del shapefile
-        df_estaciones_shp = gdf_estaciones[['Id_estacion_shp', 'Nom_Est_shp', 'municipio', 'Latitud', 'Longitud']]
+        df_estaciones_shp = gdf_estaciones[['Id_estacion', 'Nom_Est_shp', 'municipio', 'Latitud', 'Longitud']]
         # Convertir 'Id_estacion' a string
-        df_estaciones_shp['Id_estacion_shp'] = df_estaciones_shp['Id_estacion_shp'].astype(str)
+        df_estaciones_shp['Id_estacio'] = df_estaciones_shp['Id_estacio'].astype(str)
     
     # ENSO data is missing, so we load the dummy data
     df_enso = load_enso_data()
@@ -153,7 +153,7 @@ except Exception as e:
 
 if df_precip is not None and not df_precip.empty and gdf_estaciones is not None and not gdf_estaciones.empty:
     # --- Unión de los datos de precipitación y estaciones ---
-    df_completo = pd.merge(df_precip, df_estaciones_shp, left_on='Id_estacion', right_on='Id_estacion_shp', how='left')
+    df_completo = pd.merge(df_precip, df_estaciones_shp, left_on='Id_estacion', right_on='Id_estacio', how='left')
     df_completo = df_completo.dropna(subset=['Latitud', 'Longitud'])
     
     # Preparación de datos para el análisis ENSO
@@ -253,7 +253,7 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
         # Mapa Animado (Plotly)
         st.header("4. Mapa Animado de Precipitación Anual")
         # El DataFrame df_anual ya tiene 'Id_estacion'
-        df_anual_plot = pd.merge(df_anual, df_estaciones_shp[['Id_estacion_shp', 'Longitud', 'Latitud']], left_on='Id_estacion', right_on='Id_estacion_shp', how='left')
+        df_anual_plot = pd.merge(df_anual, df_estaciones_shp[['Id_estacio', 'Longitud', 'Latitud']], left_on='Id_estacion', right_on='Id_estacio', how='left')
         
         fig_mapa_anual = px.scatter_mapbox(
             df_anual_plot,
