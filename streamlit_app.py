@@ -1,3 +1,6 @@
+# Visor de Información Geoespacial de Precipitación
+# Creado para el análisis de datos climáticos y su correlación con eventos ENSO.
+
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -34,7 +37,8 @@ def load_data(file_type, file_path, sep=';'):
     try:
         if file_type == 'local':
             if file_path.endswith('.csv'):
-                return pd.read_csv(file_path, sep=sep)
+                # Modificación aquí: Se añade quotechar='"'
+                return pd.read_csv(file_path, sep=sep, quotechar='"')
             else:
                 st.error(f"Tipo de archivo no soportado: {file_path}")
                 return None
@@ -42,7 +46,8 @@ def load_data(file_type, file_path, sep=';'):
             response = requests.get(file_path)
             if response.status_code == 200:
                 content = io.StringIO(response.text)
-                return pd.read_csv(content, sep=sep)
+                # Modificación aquí: Se añade quotechar='"'
+                return pd.read_csv(content, sep=sep, quotechar='"')
             else:
                 st.error(f"Error al descargar el archivo de GitHub: {response.status_code}")
                 return None
