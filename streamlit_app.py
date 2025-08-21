@@ -44,7 +44,7 @@ def load_enso_data():
     """
     Carga datos de ENSO. Se utiliza una plantilla si el archivo no está disponible.
     """
-    st.warning("El archivo 'ENSO_1950-2023.csv' no se encontró. Se usará un DataFrame de ejemplo. Por favor, reemplace esta sección con su archivo real para un análisis completo.")
+    st.warning("El archivo 'ENSO_1950_2023.csv' no se encontró. Se usará un DataFrame de ejemplo. Por favor, reemplace esta sección con su archivo real para un análisis completo.")
     enso_data = {
         'Id_Fecha': pd.to_datetime(pd.date_range(start='1970-01-01', end='2021-12-01', freq='MS').strftime('%Y-%m-%d')),
         'Anomalia_ONI': np.random.uniform(-2.5, 2.5, size=624)
