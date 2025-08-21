@@ -124,7 +124,11 @@ try:
     df_estaciones = pd.read_csv(io.StringIO(stations_file_content.decode('utf-8')), sep=';', header=0)
     
     # Convertir 'Id_estacion' a string para asegurar la compatibilidad en la unión
-    df_estaciones['Id_estacion'] = df_estaciones['Id_estacion'].astype(str)
+    if 'Id_estacion' in df_estaciones.columns:
+        df_estaciones['Id_estacion'] = df_estaciones['Id_estacion'].astype(str)
+    else:
+        st.error("Error: La columna 'Id_estacion' no se encuentra en el archivo de estaciones.")
+        st.stop()
 
     # ENSO data is missing, so we load the dummy data
     df_enso = load_enso_data()
@@ -195,7 +199,8 @@ if df_precip is not None and not df_precip.empty and df_estaciones is not None a
         
         # Gráfico de Serie de Tiempo Anual
         st.header("1. Serie de Tiempo Anual de Precipitación")
-        df_anual = df_filtered.groupby(['Año', 'Nom_Est'])['Precipitacion_mm'].sum().reset_index()
+        # Corrección: Agrupar por 'Id_estacion' para mantener la clave de unión
+        df_anual = df_filtered.groupby(['Año', 'Id_estacion', 'Nom_Est'])['Precipitacion_mm'].sum().reset_index()
         df_anual['Fecha_Anual'] = pd.to_datetime(df_anual['Año'], format='%Y')
         
         chart_anual = alt.Chart(df_anual).mark_line(point=True).encode(
@@ -237,13 +242,13 @@ if df_precip is not None and not df_precip.empty and df_estaciones is not None a
             
         # Mapa Animado (Plotly)
         st.header("4. Mapa Animado de Precipitación Anual")
-        df_anual_plot = df_anual.copy()
-        df_anual_plot = pd.merge(df_anual_plot, df_estaciones[['Id_estacion', 'Longitud', 'Latitud']], on='Id_estacion', how='left')
+        # El DataFrame df_anual ya tiene 'Id_estacion' y 'Nom_Est'
+        df_anual_plot = pd.merge(df_anual, df_estaciones[['Id_estacion', 'Longitud', 'Latitud']], on='Id_estacion', how='left')
         
         # Corrección de coordenadas para el mapa animado
         df_anual_plot['Longitud'] = df_anual_plot['Longitud'].astype(float) / 1000000
         df_anual_plot['Latitud'] = df_anual_plot['Latitud'].astype(float) / 1000000
-
+        
         fig_mapa_anual = px.scatter_mapbox(
             df_anual_plot,
             lat='Latitud',
