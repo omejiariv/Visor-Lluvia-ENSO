@@ -36,7 +36,6 @@ def load_data(file_type, file_path, sep=';'):
     """
     try:
         if file_type == 'local':
-            # Corrección aquí: se usa file_path.name para obtener el nombre del archivo
             if file_path.name.endswith('.csv'):
                 return pd.read_csv(file_path, sep=sep, quotechar='"')
             else:
@@ -152,17 +151,19 @@ if all([df_estaciones is not None, df_pptn is not None, df_enso is not None]):
     }, inplace=True)
     
     # Mapeo y limpieza del DataFrame de precipitación
-    df_pptn.rename(columns={
-        'Id_Fecha': 'Id_Fecha'
-    }, inplace=True)
-
+    # Se ha eliminado el rename de 'Id_Fecha' ya que se usa dinámicamente
+    
     # Mapeo y limpieza del DataFrame ENSO
     df_enso.rename(columns={
         'Year': 'Year', 'mes': 'mes', 'Anomalia_ONI': 'Anomalia_ONI',
         'ENSO': 'ENSO'
     }, inplace=True)
-
-    df_pptn = df_pptn.melt(id_vars=['Id_Fecha'], var_name='Id_estacion', value_name='Precipitación')
+    
+    # Obtener el nombre de la primera columna para usar en melt
+    if not df_pptn.empty:
+        date_column = df_pptn.columns[0]
+        df_pptn = df_pptn.melt(id_vars=[date_column], var_name='Id_estacion', value_name='Precipitación')
+    
     df_pptn['Id_estacion'] = df_pptn['Id_estacion'].astype(str)
     
     # Manejar los valores "Sin dato" o "0"
@@ -171,10 +172,10 @@ if all([df_estaciones is not None, df_pptn is not None, df_enso is not None]):
     # Combinar datos de estaciones y precipitación
     df_merged = pd.merge(df_pptn, df_estaciones, on='Id_estacion', how='left')
     df_merged.dropna(subset=['Latitud', 'Longitud'], inplace=True)
-    df_merged['Id_Fecha'] = pd.to_datetime(df_merged['Id_Fecha'], format='%d/%m/%Y', errors='coerce')
-    df_merged.dropna(subset=['Id_Fecha'], inplace=True)
-    df_merged['Year'] = df_merged['Id_Fecha'].dt.year
-    df_merged['Month'] = df_merged['Id_Fecha'].dt.month
+    df_merged[date_column] = pd.to_datetime(df_merged[date_column], format='%d/%m/%Y', errors='coerce')
+    df_merged.dropna(subset=[date_column], inplace=True)
+    df_merged['Year'] = df_merged[date_column].dt.year
+    df_merged['Month'] = df_merged[date_column].dt.month
 
     st.sidebar.title("Controles de Filtro")
     
