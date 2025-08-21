@@ -65,10 +65,10 @@ def load_data_from_github():
         
         # Lógica más robusta para encontrar y renombrar columnas
         column_mapping = {
-            'año': ['Año', 'año', 'AÑO'],
+            'Year': ['Year','Año', 'año', 'AÑO'],
             'mes': ['mes', 'MES'],
             'ENSO': ['ENSO', 'Ano_ENSO', 'Año_ENSO'],
-            'Anomalía_ONI': ['Anomalía ONI', 'Anomalia_ONI', 'ONI_IndOceanico']
+            'Anomalia_ONI': ['Anomalia ONI', 'Anomalia_ONI', 'ONI_IndOceanico']
         }
         
         found_columns = {}
@@ -83,11 +83,11 @@ def load_data_from_github():
         required_cols = list(column_mapping.keys())
         if all(col in st.session_state.df_enso.columns for col in required_cols):
             # Convertir las columnas a tipo int para su correcto manejo
-            st.session_state.df_enso['año'] = st.session_state.df_enso['año'].astype(int)
+            st.session_state.df_enso['Year'] = st.session_state.df_enso['Year'].astype(int)
             st.session_state.df_enso['mes'] = st.session_state.df_enso['mes'].astype(int)
             st.session_state.df_enso['ENSO'] = st.session_state.df_enso['ENSO'].str.strip()
-            # Asegurarse de que la columna Anomalía ONI es numérica
-            st.session_state.df_enso['Anomalía ONI'] = pd.to_numeric(st.session_state.df_enso['Anomalía ONI'], errors='coerce')
+            # Asegurarse de que la columna Anomalia ONI es numérica
+            st.session_state.df_enso['Anomalia ONI'] = pd.to_numeric(st.session_state.df_enso['Anomalia ONI'], errors='coerce')
 
             st.success("Datos de ENSO cargados exitosamente.")
         else:
@@ -190,10 +190,10 @@ with st.sidebar:
                 
                 # Definir un mapeo de posibles nombres de columnas a los nombres requeridos
                 column_mapping = {
-                    'año': ['Año', 'año', 'AÑO'],
+                    'Year': ['Year','Año', 'año', 'AÑO'],
                     'mes': ['mes', 'MES'],
                     'ENSO': ['ENSO', 'ENSO', 'Ano_ENSO', 'Año_ENSO'],
-                    'Anomalía ONI': ['Anomalía ONI', 'Anomalía_ONI', 'ONI_IndOceanico']
+                    'Anomalia ONI': ['Anomalia ONI', 'Anomalia_ONI', 'ONI_IndOceanico']
                 }
                 
                 found_columns = {}
@@ -208,14 +208,14 @@ with st.sidebar:
                 required_cols = list(column_mapping.keys())
                 if all(col in st.session_state.df_enso.columns for col in required_cols):
                     # Convertir las columnas a tipo int para su correcto manejo
-                    st.session_state.df_enso['año'] = st.session_state.df_enso['año'].astype(int)
+                    st.session_state.df_enso['Year'] = st.session_state.df_enso['Year'].astype(int)
                     st.session_state.df_enso['mes'] = st.session_state.df_enso['mes'].astype(int)
                     st.session_state.df_enso['ENSO'] = st.session_state.df_enso['ENSO'].str.strip()
-                    st.session_state.df_enso['Anomalía ONI'] = pd.to_numeric(st.session_state.df_enso['Anomalía ONI'], errors='coerce')
+                    st.session_state.df_enso['Anomalia ONI'] = pd.to_numeric(st.session_state.df_enso['Anomalia ONI'], errors='coerce')
                     st.success("Datos de ENSO cargados exitosamente.")
                 else:
                     missing_cols = [col for col in required_cols if col not in st.session_state.df_enso.columns]
-                    st.error(f"Error al leer el archivo ENSO: Faltan las siguientes columnas: {', '.join(missing_cols)}. Asegúrate de que el archivo contiene las columnas 'Año', 'mes', 'ENSO' y 'Anomalía ONI'.")
+                    st.error(f"Error al leer el archivo ENSO: Faltan las siguientes columnas: {', '.join(missing_cols)}. Asegúrate de que el archivo contiene las columnas 'Id_mm_yy', ',Mes', 'Temp_SST', 'Temp_media', y 'Anomalia ONI'.")
                     st.session_state.df_enso = None
             except Exception as e:
                 st.error(f"Error al leer el archivo ENSO: {e}")
@@ -399,21 +399,21 @@ if st.session_state.df is not None and st.session_state.gdf_colombia is not None
                 
                 pptn_promedio_total = df_enso_precip_filtered.groupby(['año', 'mes'])['Precipitación'].mean().reset_index()
                 
-                # Asegurar que la columna 'Anomalía ONI' exista antes de intentar usarla
-                if 'Anomalía ONI' in st.session_state.df_enso.columns:
+                # Asegurar que la columna 'Anomalia ONI' exista antes de intentar usarla
+                if 'Anomalia ONI' in st.session_state.df_enso.columns:
                     df_merged_corr = pd.merge(pptn_promedio_total, st.session_state.df_enso, on=['año', 'mes'], how='left')
                 else:
-                    st.warning("No se encontró la columna 'Anomalía ONI' en el archivo ENSO para el análisis de correlación.")
+                    st.warning("No se encontró la columna 'Anomalia ONI' en el archivo ENSO para el análisis de correlación.")
                     df_merged_corr = pd.DataFrame() # Crear un DataFrame vacío para evitar errores
                 
                 if not df_merged_corr.empty:
-                    df_merged_corr.dropna(subset=['Precipitación', 'Anomalía ONI'], inplace=True)
+                    df_merged_corr.dropna(subset=['Precipitación', 'Anomalia ONI'], inplace=True)
                     
                     df_merged_corr['Precipitación'] = pd.to_numeric(df_merged_corr['Precipitación'], errors='coerce')
-                    df_merged_corr['Anomalía ONI'] = pd.to_numeric(df_merged_corr['Anomalía ONI'], errors='coerce')
+                    df_merged_corr['Anomalia ONI'] = pd.to_numeric(df_merged_corr['Anomalia ONI'], errors='coerce')
 
                     if len(df_merged_corr) > 1:
-                        correlation = df_merged_corr['Precipitación'].corr(df_merged_corr['Anomalía ONI'])
+                        correlation = df_merged_corr['Precipitación'].corr(df_merged_corr['Anomalia ONI'])
                         st.write(f"Coeficiente de correlación entre la precipitación promedio de las estaciones y el Índice Oceánico ONI: **{correlation:.2f}**")
 
                         if correlation > 0.3:
