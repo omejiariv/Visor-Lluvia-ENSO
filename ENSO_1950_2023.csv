@@ -1,4 +1,4 @@
-﻿Id_año_mes;Year;mes;Anomalia_ONI;ENSO;Temp SST;Temp media
+id;Year;mes;Anomalia_ONI;ENSO;Temp_SST;Temp_media
 ene-50;1950;ene;-1,62;Niña;26,18;26,18
 feb-50;1950;feb;-1,32;Niña;26,39;26,29
 mar-50;1950;mar;-1,07;Niña;26,95;26,51
