@@ -133,13 +133,28 @@ try:
     # Cargar los datos de las estaciones directamente del shapefile
     gdf_estaciones = load_geospatial_data('local', 'mapaCV.zip')
     
-    # Renombrar columnas para la unión
+    # Renombrar columnas para la unión y la estandarización
     if gdf_estaciones is not None:
         # Renombrar 'Id_estacio' a 'Id_estacion' para unificar con el otro DataFrame
-        gdf_estaciones.rename(columns={'Id_estacio': 'Id_estacion', 'Nom_Est': 'Nom_Est_shp'}, inplace=True)
+        if 'Id_estacio' in gdf_estaciones.columns:
+            gdf_estaciones.rename(columns={'Id_estacio': 'Id_estacion'}, inplace=True)
+        # Renombrar 'Nom_Est' a 'Nom_Est_shp'
+        if 'Nom_Est' in gdf_estaciones.columns:
+            gdf_estaciones.rename(columns={'Nom_Est': 'Nom_Est_shp'}, inplace=True)
+        # Renombrar 'MUNICIPIO' a 'municipio' si existe
+        if 'MUNICIPIO' in gdf_estaciones.columns:
+            gdf_estaciones.rename(columns={'MUNICIPIO': 'municipio'}, inplace=True)
+
         # Tomar los datos relevantes de las estaciones del shapefile
-        df_estaciones_shp = gdf_estaciones[['Id_estacion', 'Nom_Est_shp', 'municipio', 'Latitud', 'Longitud']]
-        # Convertir 'Id_estacion' a string
+        # Se usa una lista de columnas y se verifica su existencia
+        required_cols = ['Id_estacion', 'Nom_Est_shp', 'municipio', 'Latitud', 'Longitud']
+        available_cols = [col for col in required_cols if col in gdf_estaciones.columns]
+
+        if len(available_cols) < 5:
+            st.error("Error en las columnas del shapefile. Faltan una o más columnas clave.")
+            st.stop()
+        
+        df_estaciones_shp = gdf_estaciones[available_cols]
         df_estaciones_shp['Id_estacion'] = df_estaciones_shp['Id_estacion'].astype(str)
     
     # ENSO data is missing, so we load the dummy data
@@ -252,7 +267,6 @@ if df_precip is not None and not df_precip.empty and gdf_estaciones is not None 
             
         # Mapa Animado (Plotly)
         st.header("4. Mapa Animado de Precipitación Anual")
-        # El DataFrame df_anual ya tiene 'Id_estacion'
         df_anual_plot = pd.merge(df_anual, df_estaciones_shp[['Id_estacion', 'Longitud', 'Latitud']], on='Id_estacion', how='left')
         
         fig_mapa_anual = px.scatter_mapbox(
