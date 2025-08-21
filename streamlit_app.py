@@ -114,22 +114,6 @@ def preprocess_precipitation_data(df_ppt):
     return df_long
 
 # --- Carga de datos principales ---
-@st.cache_data
-def load_all_data(precip_file, stations_file, enso_file):
-    """Carga y procesa todos los datos necesarios para la aplicación."""
-    try:
-        df_precip_wide = pd.read_csv(precip_file, sep=';', header=0)
-        df_precip = preprocess_precipitation_data(df_precip_wide)
-        
-        df_estaciones = pd.read_csv(stations_file, sep=';', header=0)
-        df_enso = load_enso_data() # Llama a la función de carga de ENSO
-        
-        return df_precip, df_estaciones, df_enso
-    except Exception as e:
-        st.error(f"Error al cargar los archivos: {e}")
-        return None, None, None
-
-# --- Carga de los archivos cargados por el usuario ---
 try:
     precip_file_content = open("DatosPptnmes_ENSO.csv", "rb").read()
     stations_file_content = open("mapaCVENSO.csv", "rb").read()
@@ -138,8 +122,10 @@ try:
     df_precip = preprocess_precipitation_data(df_precip_wide)
     
     df_estaciones = pd.read_csv(io.StringIO(stations_file_content.decode('utf-8')), sep=';', header=0)
-    df_estaciones['estacion'] = df_estaciones['estacion'].astype(str) # Conversión a string
     
+    # Convertir 'Id_estacion' a string para asegurar la compatibilidad en la unión
+    df_estaciones['Id_estacion'] = df_estaciones['Id_estacion'].astype(str)
+
     # ENSO data is missing, so we load the dummy data
     df_enso = load_enso_data()
 
@@ -147,12 +133,12 @@ except FileNotFoundError as e:
     st.error(f"Error: No se encontró el archivo necesario. Asegúrese de que todos los archivos CSV y el archivo .zip están en la misma carpeta que el script. Error: {e}")
     st.stop()
 except Exception as e:
-    st.error(f"Error inesperado al cargar los archivos: {e}")
+    st.error(f"Error inesperado al cargar los archivos. Por favor, verifique los nombres de las columnas y los delimitadores. Error: {e}")
     st.stop()
 
 if df_precip is not None and not df_precip.empty and df_estaciones is not None and not df_estaciones.empty:
     # --- Unión de los datos de precipitación y estaciones ---
-    df_completo = pd.merge(df_precip, df_estaciones, left_on='Id_estacion', right_on='estacion', how='left')
+    df_completo = pd.merge(df_precip, df_estaciones, on='Id_estacion', how='left')
     df_completo = df_completo.dropna(subset=['Latitud', 'Longitud'])
     
     # Ajustar coordenadas (geopandas usa Longitud, Latitud)
@@ -251,15 +237,22 @@ if df_precip is not None and not df_precip.empty and df_estaciones is not None a
             
         # Mapa Animado (Plotly)
         st.header("4. Mapa Animado de Precipitación Anual")
+        df_anual_plot = df_anual.copy()
+        df_anual_plot = pd.merge(df_anual_plot, df_estaciones[['Id_estacion', 'Longitud', 'Latitud']], on='Id_estacion', how='left')
+        
+        # Corrección de coordenadas para el mapa animado
+        df_anual_plot['Longitud'] = df_anual_plot['Longitud'].astype(float) / 1000000
+        df_anual_plot['Latitud'] = df_anual_plot['Latitud'].astype(float) / 1000000
+
         fig_mapa_anual = px.scatter_mapbox(
-            df_anual,
+            df_anual_plot,
             lat='Latitud',
             lon='Longitud',
             color='Precipitacion_mm',
             size='Precipitacion_mm',
             animation_frame='Año',
             hover_name='Nom_Est',
-            hover_data={'Precipitacion_mm': ':.2f', 'municipio': True},
+            hover_data={'Precipitacion_mm': ':.2f'},
             color_continuous_scale=px.colors.sequential.Viridis,
             mapbox_style="carto-positron",
             zoom=5,
