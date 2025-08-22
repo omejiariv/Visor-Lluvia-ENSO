@@ -21,6 +21,24 @@ from shapely.geometry import Point
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", page_icon="☔")
 
+# Aplicar CSS personalizado para reducir el tamaño del texto en el sidebar
+st.markdown("""
+<style>
+    .sidebar .sidebar-content {
+        font-size: 14px;
+    }
+    .stSelectbox label, .stMultiSelect label, .stSlider label {
+        font-size: 14px !important;
+    }
+    .css-1d391kg {
+        font-size: 14px;
+    }
+    .css-1cpx93x {
+        font-size: 14px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- Funciones de carga de datos ---
 def load_data(file_path, sep=';'):
     """
@@ -97,11 +115,12 @@ y su correlación con los eventos climáticos de El Niño-Oscilación del Sur (E
 st.sidebar.header("Panel de Control")
 st.sidebar.markdown("Por favor, suba los archivos requeridos para comenzar.")
 
-# Carga de archivos manual
-uploaded_file_mapa = st.sidebar.file_uploader("1. Cargar archivo de estaciones (mapaCVENSO.csv)", type="csv")
-uploaded_file_enso = st.sidebar.file_uploader("2. Cargar archivo de ENSO (ENSO_1950_2023.csv)", type="csv")
-uploaded_file_precip = st.sidebar.file_uploader("3. Cargar archivo de precipitación mensual (DatosPptnmes_ENSO.csv)", type="csv")
-uploaded_zip_shapefile = st.sidebar.file_uploader("4. Cargar shapefile (.zip)", type="zip")
+# Carga de archivos manual dentro de un expansor
+with st.sidebar.expander("📂 **Cargar Archivos**"):
+    uploaded_file_mapa = st.file_uploader("1. Cargar archivo de estaciones (mapaCVENSO.csv)", type="csv")
+    uploaded_file_enso = st.file_uploader("2. Cargar archivo de ENSO (ENSO_1950_2023.csv)", type="csv")
+    uploaded_file_precip = st.file_uploader("3. Cargar archivo de precipitación mensual (DatosPptnmes_ENSO.csv)", type="csv")
+    uploaded_zip_shapefile = st.file_uploader("4. Cargar shapefile (.zip)", type="zip")
 
 # Proceso de carga de datos
 df_precip_anual, df_enso, df_precip_mensual, gdf = None, None, None, None
