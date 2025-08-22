@@ -8,3 +8,10 @@ pykrige
 scipy
 numpy
 shapely
+streamlit-folium
+pyshp
+fiona
+pyproj
+rtree
+matplotlib
+statsmodels
