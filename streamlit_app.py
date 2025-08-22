@@ -308,21 +308,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         ).interactive()
         st.altair_chart(chart_anual, use_container_width=True)
 
-        # Botón de descarga de datos (CSV)
-        csv_anual = df_precip_anual_filtered_melted.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Descargar datos anuales (CSV)",
-            data=csv_anual,
-            file_name='precipitacion_anual.csv',
-            mime='text/csv',
-        )
-        
-        # Botón de descarga de la imagen (PNG)
-        chart_json = chart_anual.to_json()
-        download_link = f'data:application/json;base64,{base64.b64encode(chart_json.encode()).decode()}'
-        st.markdown(f'<a href="{download_link}" download="precipitacion_anual.json">Descargar gráfico anual (JSON)</a>', unsafe_allow_html=True)
-        st.markdown(f'<a href="{chart_anual.to_json()}" download="precipitacion_anual.json">Descargar gráfico anual (JSON)</a>', unsafe_allow_html=True)
-
     else:
         st.warning("No hay datos para las estaciones y el rango de años seleccionados.")
 
@@ -348,21 +333,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         ).interactive()
         st.altair_chart(chart_mensual, use_container_width=True)
         
-        # Botón de descarga de datos (CSV)
-        csv_mensual = df_monthly_filtered.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Descargar datos mensuales (CSV)",
-            data=csv_mensual,
-            file_name='precipitacion_mensual.csv',
-            mime='text/csv',
-        )
-        
-        # Botón de descarga de la imagen (PNG)
-        chart_json = chart_mensual.to_json()
-        download_link = f'data:application/json;base64,{base64.b64encode(chart_json.encode()).decode()}'
-        st.markdown(f'<a href="{download_link}" download="precipitacion_mensual.json">Descargar gráfico mensual (JSON)</a>', unsafe_allow_html=True)
-        st.markdown(f'<a href="{chart_mensual.to_json()}" download="precipitacion_mensual.json">Descargar gráfico mensual (JSON)</a>', unsafe_allow_html=True)
-
     else:
         st.warning("No hay datos mensuales para las estaciones y el rango de años seleccionados.")
 
@@ -409,22 +379,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
             countrycolor="black"
         )
         st.plotly_chart(fig_mapa_animado, use_container_width=True)
-
-        # Botón de descarga de la imagen (PNG) - Requiere la librería kaleido
-        try:
-            from PIL import Image
-            import kaleido
-            img_bytes = fig_mapa_animado.to_image(format="png")
-            st.download_button(
-                label="Descargar Mapa Animado (PNG)",
-                data=img_bytes,
-                file_name="mapa_animado_precipitacion.png",
-                mime="image/png"
-            )
-            st.info("Para que la descarga funcione, debe tener la librería **kaleido** instalada (`pip install kaleido`).")
-        except ImportError:
-            st.warning("La librería `kaleido` no está instalada. No es posible descargar la imagen PNG de este mapa. Por favor, instálela con `pip install kaleido`.")
-
     else:
         st.warning("No hay datos suficientes para generar el mapa animado.")
 
@@ -452,21 +406,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         )
         st.plotly_chart(fig_enso, use_container_width=True)
 
-        # Botón de descarga de la imagen (PNG)
-        try:
-            from PIL import Image
-            import kaleido
-            img_bytes = fig_enso.to_image(format="png")
-            st.download_button(
-                label="Descargar gráfico de ENSO (PNG)",
-                data=img_bytes,
-                file_name="precipitacion_enso.png",
-                mime="image/png"
-            )
-            st.info("Para que la descarga funcione, debe tener la librería **kaleido** instalada (`pip install kaleido`).")
-        except ImportError:
-            st.warning("La librería `kaleido` no está instalada. No es posible descargar la imagen PNG de este gráfico. Por favor, instálela con `pip install kaleido`.")
-
         df_corr = df_analisis[['Anomalia_ONI', 'Precipitation']].dropna()
         if not df_corr.empty:
             correlation = df_corr['Anomalia_ONI'].corr(df_corr['Precipitation'])
@@ -482,3 +421,43 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     except Exception as e:
         st.error(f"Error en el análisis ENSO: {e}")
+
+    # --- Opciones de Descarga ---
+    st.markdown("---")
+    st.header("Opciones de Descarga 📥")
+    st.markdown("""
+    **Exportar a CSV:**
+    Para obtener los datos filtrados en formato CSV, haga clic en los enlaces de descarga debajo de los títulos de cada sección.
+    """)
+    
+    # Botón de descarga para datos anuales (CSV)
+    st.markdown("**Datos de Precipitación Anual**")
+    csv_anual = df_precip_anual_filtered_melted.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Descargar datos anuales (CSV)",
+        data=csv_anual,
+        file_name='precipitacion_anual.csv',
+        mime='text/csv',
+    )
+    
+    # Botón de descarga para datos mensuales (CSV)
+    st.markdown("**Datos de Precipitación Mensual**")
+    csv_mensual = df_monthly_filtered.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Descargar datos mensuales (CSV)",
+        data=csv_mensual,
+        file_name='precipitacion_mensual.csv',
+        mime='text/csv',
+    )
+    
+    st.markdown("---")
+    st.markdown("""
+    **Exportar a Imagen (PNG/SVG):**
+    Para descargar los **gráficos** como imagen, simplemente pase el cursor sobre el gráfico y haga clic en el ícono de la cámara 📷 que aparece en la parte superior derecha. Para los **mapas de Folium**, use una captura de pantalla.
+
+    **Exportar a PDF:**
+    Para guardar una copia de toda la página (incluyendo todos los gráficos y tablas visibles) como un archivo PDF, utilice la función de su navegador:
+    1. Vaya al menú del navegador (usualmente en la esquina superior derecha).
+    2. Seleccione **"Imprimir..."**.
+    3. En el destino, elija **"Guardar como PDF"**.
+    """)
