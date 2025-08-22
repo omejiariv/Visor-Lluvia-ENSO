@@ -18,6 +18,7 @@ import re
 from datetime import datetime
 from shapely.geometry import Point
 import base64
+from folium.plugins import ScaleControl
 
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", page_icon="☔")
@@ -332,21 +333,62 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     else:
         st.warning("No hay datos mensuales para las estaciones, el rango de años y los meses seleccionados.")
 
-    # Mapa Interactivo (Folium)
+    # Mapa Interactivo (Folium) con opciones de centrado
     st.subheader("Mapa de Estaciones de Lluvia en Colombia")
     st.markdown("Ubicación de las estaciones seleccionadas.")
 
     gdf_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
 
     if not gdf_filtered.empty:
-        m = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
-        for _, row in gdf_filtered.iterrows():
-            folium.Marker(
-                location=[row['Latitud_geo'], row['Longitud_geo']],
-                tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
-                icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
-            ).add_to(m)
-        folium_static(m, width=900, height=600)
+        
+        tab_auto, tab_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
+
+        with tab_auto:
+            st.info("El mapa se centra y ajusta automáticamente a las estaciones seleccionadas.")
+            # Centrado automático basado en el bounding box de las estaciones
+            m_auto = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
+            bounds = gdf_filtered.total_bounds
+            m_auto.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+            folium.plugins.ScaleControl().add_to(m_auto)
+
+            for _, row in gdf_filtered.iterrows():
+                folium.Marker(
+                    location=[row['Latitud_geo'], row['Longitud_geo']],
+                    tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
+                    icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
+                ).add_to(m_auto)
+            folium_static(m_auto, width=900, height=600)
+            
+        with tab_predef:
+            st.info("Use los botones para centrar el mapa en ubicaciones predefinidas.")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("Ver Colombia"):
+                    st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+            with col2:
+                if st.button("Ver Antioquia"):
+                    st.session_state.map_view = {"location": [6.2442, -75.5812], "zoom": 8}
+            with col3:
+                if st.button("Ver Estaciones Seleccionadas"):
+                    bounds = gdf_filtered.total_bounds
+                    st.session_state.map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8} # Ajuste de zoom inicial
+
+            if 'map_view' not in st.session_state:
+                st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+
+            m_predef = folium.Map(location=st.session_state.map_view["location"], zoom_start=st.session_state.map_view["zoom"])
+            folium.plugins.ScaleControl().add_to(m_predef)
+
+            for _, row in gdf_filtered.iterrows():
+                folium.Marker(
+                    location=[row['Latitud_geo'], row['Longitud_geo']],
+                    tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
+                    icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
+                ).add_to(m_predef)
+            
+            folium_static(m_predef, width=900, height=600)
+
         st.info("""
         **Nota sobre la interactividad:** Para los mapas de Folium, la selección por leyenda no es una funcionalidad nativa. Para filtrar las estaciones, por favor use las opciones de selección en el panel lateral.
         """)
@@ -367,7 +409,9 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
             animation_frame='Año',
             projection='natural earth',
             title='Precipitación Anual de las Estaciones',
-            color_continuous_scale=px.colors.sequential.RdBu
+            color_continuous_scale=px.colors.sequential.RdBu,
+            width=1000,
+            height=700
         )
         fig_mapa_animado.update_geos(fitbounds="locations", showcountries=True, countrycolor="black")
         st.plotly_chart(fig_mapa_animado, use_container_width=True)
