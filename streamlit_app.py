@@ -187,9 +187,13 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # Gráfico de Serie de Tiempo Anual
     st.subheader("Precipitación Anual Total (mm)")
     df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est'].isin(filtered_stations)].copy()
-    df_precip_anual_filtered = df_precip_anual_filtered.loc[:, df_precip_anual_filtered.columns.astype(str).str.contains('^Id_estacio|Nom_Est|\\d{4}$')]
+    
+    # Identificar y usar solo las columnas de años para el melt
+    year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
+    
     df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
         id_vars=['Nom_Est'], 
+        value_vars=year_cols,  # Especifica las columnas a derretir
         var_name='Año', 
         value_name='Precipitación'
     )
