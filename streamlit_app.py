@@ -15,6 +15,7 @@ import os
 import io
 import numpy as np
 from datetime import datetime
+import locale
 
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", page_icon="☔")
@@ -113,8 +114,20 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # --- Preprocesamiento de datos ENSO ---
     try:
+        # Intenta establecer la configuración regional en español, si está disponible
+        try:
+            locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+        except locale.Error:
+            try:
+                locale.setlocale(locale.LC_TIME, 'es_ES')
+            except locale.Error:
+                st.warning("No se pudo establecer la configuración regional en español. La conversión de fechas podría fallar.")
+        
         df_enso['Year'] = df_enso['Year'].astype(int)
         df_enso['fecha_merge'] = pd.to_datetime(df_enso['Year'].astype(str) + '-' + df_enso['mes'], format='%Y-%b').dt.strftime('%Y-%m')
+        
+        # Restaura la configuración regional a su valor original
+        locale.setlocale(locale.LC_TIME, '')
 
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo ENSO: {e}")
