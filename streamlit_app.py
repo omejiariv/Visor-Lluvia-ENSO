@@ -52,7 +52,7 @@ def load_data(file_path, sep=';'):
         except UnicodeDecodeError:
             continue  # Si falla, intenta con la siguiente codificación
         except Exception as e:
-        st.error(f"Ocurrió un error al cargar los datos: {e}")
+            st.error(f"Ocurrió un error al cargar los datos: {e}")
             return None
     
     st.error("No se pudo decodificar el archivo con ninguna de las codificaciones probadas (utf-8, latin1, cp1252, iso-8859-1). Por favor, verifique la codificación del archivo.")
