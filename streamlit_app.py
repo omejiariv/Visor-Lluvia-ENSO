@@ -149,15 +149,15 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
             if col in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual[col]):
                 df_precip_anual[col] = df_precip_anual[col].str.replace(',', '.', regex=True).astype(float)
 
-        # Transformar las coordenadas planas (EPSG:9377) a geográficas (WGS84)
-        gdf_csv = gpd.GeoDataFrame(
+        # Crear un GeoDataFrame directamente desde el CSV para las visualizaciones
+        gdf_stations = gpd.GeoDataFrame(
             df_precip_anual,
             geometry=gpd.points_from_xy(df_precip_anual['Longitud'], df_precip_anual['Latitud']),
             crs="EPSG:9377"
         )
-        gdf_csv = gdf_csv.to_crs("EPSG:4326")
-        df_precip_anual['Longitud_geo'] = gdf_csv.geometry.x
-        df_precip_anual['Latitud_geo'] = gdf_csv.geometry.y
+        gdf_stations = gdf_stations.to_crs("EPSG:4326")
+        gdf_stations['Longitud_geo'] = gdf_stations.geometry.x
+        gdf_stations['Latitud_geo'] = gdf_stations.geometry.y
         
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo de estaciones (mapaCVENSO.csv): {e}")
@@ -194,25 +194,22 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.stop()
 
     # --- Mapeo y Fusión de Estaciones ---
-    # Limpieza robusta de los nombres de estación en ambos DataFrames para la fusión
-    df_precip_anual['Nom_Est_clean'] = df_precip_anual['Nom_Est'].astype(str).str.upper().str.strip()
-    df_precip_anual['Nom_Est_clean'] = df_precip_anual['Nom_Est_clean'].apply(lambda x: re.sub(r'[^A-Z0-9]', '', x))
+    # Limpieza robusta de los nombres de estación para la unión
+    gdf_stations['Nom_Est_clean'] = gdf_stations['Nom_Est'].astype(str).str.upper().str.strip()
+    gdf_stations['Nom_Est_clean'] = gdf_stations['Nom_Est_clean'].apply(lambda x: re.sub(r'[^A-Z0-9]', '', x))
 
     gdf['Nom_Est_clean'] = gdf['Nom_Est'].astype(str).str.upper().str.strip()
     gdf['Nom_Est_clean'] = gdf['Nom_Est_clean'].apply(lambda x: re.sub(r'[^A-Z0-9]', '', x))
-
-    # Fusionar el GeoDataFrame con los datos de las estaciones del CSV
-    gdf = gdf.merge(df_precip_anual[['Nom_Est_clean', 'Nom_Est', 'Porc_datos', 'municipio', 'Latitud_geo', 'Longitud_geo']], on='Nom_Est_clean', how='inner')
-
-    if gdf.empty:
-        st.warning("La fusión de datos de estaciones y coordenadas fracasó. Los nombres de las estaciones en el archivo .csv y el .zip podrían no coincidir.")
-        st.stop()
+    
+    # La fusión ya no se usa para el mapa de puntos, pero se mantiene para la consistencia
+    # de los datos de las estaciones si se necesitara en otros gráficos.
+    # No obstante, el principal dataframe para los puntos del mapa será gdf_stations.
     
     # Unir la información de las estaciones a los datos mensuales usando los IDs correctos
-    df_precip_anual['Id_estacio'] = df_precip_anual['Id_estacio'].astype(str).str.strip()
+    gdf_stations['Id_estacio'] = gdf_stations['Id_estacio'].astype(str).str.strip()
     df_long['Id_estacion'] = df_long['Id_estacion'].astype(str).str.strip()
     
-    station_mapping = df_precip_anual.set_index('Id_estacio')[['Nom_Est_clean', 'Nom_Est']].to_dict('index')
+    station_mapping = gdf_stations.set_index('Id_estacio')[['Nom_Est_clean', 'Nom_Est']].to_dict('index')
     
     df_long['Nom_Est_clean'] = df_long['Id_estacion'].map(lambda x: station_mapping.get(x, {}).get('Nom_Est_clean'))
     df_long['Nom_Est'] = df_long['Id_estacion'].map(lambda x: station_mapping.get(x, {}).get('Nom_Est'))
@@ -223,7 +220,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.stop()
 
     # --- Controles en la barra lateral ---
-    staciones_list = sorted(df_precip_anual['Nom_Est'].unique())
+    staciones_list = sorted(gdf_stations['Nom_Est'].unique())
     selected_stations = st.sidebar.multiselect(
         'Seleccione una o varias estaciones', 
         options=staciones_list,
@@ -231,10 +228,10 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     )
     
     # Convertir los nombres de estación seleccionados a la versión limpia para los filtros
-    selected_stations_clean = [df_precip_anual[df_precip_anual['Nom_Est'] == s]['Nom_Est_clean'].iloc[0] for s in selected_stations if s in df_precip_anual['Nom_Est'].values]
+    selected_stations_clean = [gdf_stations[gdf_stations['Nom_Est'] == s]['Nom_Est_clean'].iloc[0] for s in selected_stations if s in gdf_stations['Nom_Est'].values]
 
     # Filtro de años
-    años_disponibles = sorted([int(col) for col in df_precip_anual.columns if str(col).isdigit() and len(str(col)) == 4])
+    años_disponibles = sorted([int(col) for col in gdf_stations.columns if str(col).isdigit() and len(str(col)) == 4])
     year_range = st.sidebar.slider(
         "Seleccione el rango de años",
         min_value=min(años_disponibles),
@@ -243,7 +240,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     )
 
     # Filtro por municipio
-    municipios_list = sorted(df_precip_anual['municipio'].unique())
+    municipios_list = sorted(gdf_stations['municipio'].unique())
     selected_municipios = st.sidebar.multiselect(
         'Filtrar por municipio',
         options=municipios_list,
@@ -252,20 +249,20 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # Aplicar filtros
     if selected_municipios:
-        filtered_stations_by_municipio = df_precip_anual[df_precip_anual['municipio'].isin(selected_municipios)]['Nom_Est'].tolist()
+        filtered_stations_by_municipio = gdf_stations[gdf_stations['municipio'].isin(selected_municipios)]['Nom_Est'].tolist()
         filtered_stations = [s for s in selected_stations if s in filtered_stations_by_municipio]
     else:
         filtered_stations = selected_stations
     
     # Convertir los nombres de estación filtrados a la versión limpia para las visualizaciones
-    filtered_stations_clean = [df_precip_anual[df_precip_anual['Nom_Est'] == s]['Nom_Est_clean'].iloc[0] for s in filtered_stations if s in df_precip_anual['Nom_Est'].values]
+    filtered_stations_clean = [gdf_stations[gdf_stations['Nom_Est'] == s]['Nom_Est_clean'].iloc[0] for s in filtered_stations if s in gdf_stations['Nom_Est'].values]
 
     # --- Sección de Visualizaciones ---
     st.header("Visualizaciones de Precipitación 💧")
     
     # Gráfico de Serie de Tiempo Anual
     st.subheader("Precipitación Anual Total (mm)")
-    df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est'].isin(filtered_stations)].copy()
+    df_precip_anual_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
     
     year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
     
@@ -323,7 +320,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.subheader("Mapa de Estaciones de Lluvia en Colombia")
     st.markdown("Ubicación de las estaciones seleccionadas.")
 
-    gdf_filtered = gdf[gdf['Nom_Est_clean'].isin(filtered_stations_clean)].copy()
+    gdf_filtered = gdf_stations[gdf_stations['Nom_Est_clean'].isin(filtered_stations_clean)].copy()
 
     if not gdf_filtered.empty:
         m = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
@@ -342,9 +339,9 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # Mapa Animado (Plotly)
     st.subheader("Mapa Animado de Precipitación Anual")
     st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
-    if not df_precip_anual_filtered_melted.empty and not gdf_filtered.empty:
-        # Usamos df_precip_anual_filtered para la unión ya que tiene las coordenadas
-        df_plot = df_precip_anual_filtered_melted.merge(gdf_filtered[['Nom_Est_clean', 'Nom_Est', 'Latitud_geo', 'Longitud_geo']], on='Nom_Est_clean', how='inner')
+    if not df_precip_anual_filtered_melted.empty and not gdf_stations.empty:
+        # Usamos gdf_stations para la unión ya que tiene las coordenadas
+        df_plot = df_precip_anual_filtered_melted.merge(gdf_stations[['Nom_Est_clean', 'Nom_Est', 'Latitud_geo', 'Longitud_geo']], on='Nom_Est_clean', how='inner')
         fig_mapa_animado = px.scatter_geo(
             df_plot,
             lat='Latitud_geo',
