@@ -134,7 +134,7 @@ if df_precip_anual is None or df_enso is None or df_precip_mensual is None or gd
 # --- Preprocesamiento de datos de precipitación mensual ---
 try:
     df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
-    df_precip_mensual = df_precip_mensual.rename(columns={'Id_Fecha': 'Fecha'})
+    df_precip_mensual = df_precip_mensual.rename(columns={'Id_Fecha': 'Id_Fecha'})
     
     df_precip_mensual['Id_Fecha'] = pd.to_datetime(df_precip_mensual['Id_Fecha'], format='%d/%m/%Y')
     df_precip_mensual['año'] = df_precip_mensual['Id_Fecha'].dt.año
@@ -154,8 +154,8 @@ except Exception as e:
 # --- Preprocesamiento de datos ENSO ---
 try:
     df_enso['año'] = df_enso['año'].astype(int)
-    # Crear una columna de Fecha para la fusión
-    df_enso['Fecha_merge'] = pd.to_datetime(df_enso['año'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
+    # Crear una columna de Id_Fecha para la fusión
+    df_enso['Id_Fecha_merge'] = pd.to_datetime(df_enso['año'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
 
 except Exception as e:
     st.error(f"Error en el preprocesamiento del archivo ENSO: {e}")
@@ -234,7 +234,7 @@ else:
 st.subheader("Precipitación Mensual Total (mm)")
 # Agrupar los datos mensuales por año, mes y estación
 df_monthly_total = df_long.groupby(['Nom_Est', 'año', 'mes'])['Precipitation'].sum().reset_index()
-df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['año'].astype(str) + '-' + df_monthly_total['mes'].astype(str), format='%Y-%m')
+df_monthly_total['Id_Fecha'] = pd.to_datetime(df_monthly_total['año'].astype(str) + '-' + df_monthly_total['mes'].astype(str), format='%Y-%m')
 
 # Filtrar por estaciones y años
 df_monthly_filtered = df_monthly_total[
@@ -245,10 +245,10 @@ df_monthly_filtered = df_monthly_total[
 
 if not df_monthly_filtered.empty:
     chart_mensual = alt.Chart(df_monthly_filtered).mark_line().encode(
-        x=alt.X('Fecha:T', title='Fecha'),
+        x=alt.X('Id_Fecha:T', title='Id_Fecha'),
         y=alt.Y('Precipitation:Q', title='Precipitación Total (mm)'),
         color='Nom_Est:N',
-        tooltip=[alt.Tooltip('Fecha', format='%Y-%m'), 'Precipitation', 'Nom_Est']
+        tooltip=[alt.Tooltip('Id_Fecha', format='%Y-%m'), 'Precipitation', 'Nom_Est']
     ).properties(
         title='Precipitación Mensual Total por Estación'
     ).interactive()
@@ -311,8 +311,8 @@ df_analisis = df_long.copy()
 
 # Fusión con los datos ENSO
 try:
-    df_analisis['Fecha_merge'] = pd.to_datetime(df_analisis['Fecha'].dt.strftime('%Y-%b'))
-    df_analisis = pd.merge(df_analisis, df_enso[['Fecha_merge', 'Anomalia_ONI', 'ENSO']], on='Fecha_merge', how='left')
+    df_analisis['Id_Fecha_merge'] = pd.to_datetime(df_analisis['Id_Fecha'].dt.strftime('%Y-%b'))
+    df_analisis = pd.merge(df_analisis, df_enso[['Id_Fecha_merge', 'Anomalia_ONI', 'ENSO']], on='Id_Fecha_merge', how='left')
     df_analisis = df_analisis.dropna(subset=['ENSO'])
 
     # Agrupar datos por evento ENSO
