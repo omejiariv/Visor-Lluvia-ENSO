@@ -23,15 +23,31 @@ st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", p
 def load_data(file_path, sep=';'):
     """
     Carga datos desde un archivo local, asumiendo un formato de archivo CSV.
-    Intenta decodificar con varias codificaciones comunes para mayor compatibilidad.
+    Intenta decodificar con varias codificaciones comunes y maneja errores de archivos vacíos.
     """
+    if file_path is None:
+        return None
+        
+    try:
+        # Lee el contenido del archivo en memoria para verificar si está vacío
+        content = file_path.getvalue()
+        if not content.strip():
+            st.error("Ocurrió un error al cargar los datos: El archivo parece estar vacío.")
+            return None
+    except Exception as e:
+        st.error(f"Error al leer el contenido del archivo: {e}")
+        return None
+
     encodings_to_try = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
     for encoding in encodings_to_try:
         try:
             # Intenta leer el archivo con la codificación actual
-            df = pd.read_csv(file_path, sep=sep, encoding=encoding)
+            df = pd.read_csv(io.BytesIO(content), sep=sep, encoding=encoding)
             df.columns = df.columns.str.strip()  # Elimina espacios en blanco en los nombres de las columnas
             return df
+        except pd.errors.EmptyDataError:
+            st.error("Ocurrió un error al cargar los datos: No columns to parse from file. El archivo podría estar vacío o dañado.")
+            return None
         except UnicodeDecodeError:
             continue  # Si falla, intenta con la siguiente codificación
         except Exception as e:
