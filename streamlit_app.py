@@ -25,7 +25,7 @@ def load_data(file_path, sep=';'):
     Carga datos desde un archivo local, asumiendo un formato de archivo CSV.
     """
     try:
-        df = pd.read_csv(file_path, sep=sep, encoding='latin1')
+        df = pd.read_csv(io.StringIO(file_path.getvalue().decode('utf-8')), sep=sep)
         df.columns = df.columns.str.strip()  # Elimina espacios en blanco en los nombres de las columnas
         return df
     except Exception as e:
@@ -85,21 +85,12 @@ else:
 # Si todos los DataFrames se cargaron correctamente, se procede con el resto de la aplicación
 if df_precip_anual is not None and df_enso is not None and df_precip_mensual is not None and gdf is not None:
     
-    # --- Validar la existencia de columnas clave ---
-    required_precip_cols = ['Id_Fecha']
-    required_station_cols = ['Id_estacion']
-
-    if not all(col in df_precip_mensual.columns for col in required_precip_cols):
-        st.error(f"Error: El archivo de precipitación no contiene la columna requerida: {required_precip_cols[0]}.")
-        st.stop()
-    
-    if not all(col in df_precip_anual.columns for col in required_station_cols):
-        st.error(f"Error: El archivo de estaciones no contiene la columna requerida: {required_station_cols[0]}.")
-        st.stop()
-
     # --- Preprocesamiento de datos de precipitación mensual ---
     try:
-        df_precip_mensual['Fecha'] = pd.to_datetime(df_precip_mensual['Id_Fecha'], format='%d/%m/%Y')
+        df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
+        # Se renombra la columna para consistencia, usando el nombre correcto del archivo
+        df_precip_mensual = df_precip_mensual.rename(columns={'Id_Fecha': 'Fecha'})
+        df_precip_mensual['Fecha'] = pd.to_datetime(df_precip_mensual['Fecha'], format='%d/%m/%Y')
         df_precip_mensual['Year'] = df_precip_mensual['Fecha'].dt.year
         df_precip_mensual['Mes'] = df_precip_mensual['Fecha'].dt.month
         
@@ -158,8 +149,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # --- Sección de Visualizaciones ---
     st.header("Visualizaciones de Precipitación 💧")
-    # ... (El resto del código de visualizaciones y análisis ENSO es el mismo) ...
-
+    
     # Gráfico de Serie de Tiempo Anual
     st.subheader("Precipitación Anual Total (mm)")
     df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est'].isin(filtered_stations)].copy()
