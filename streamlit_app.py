@@ -154,8 +154,8 @@ except Exception as e:
 # --- Preprocesamiento de datos ENSO ---
 try:
     df_enso['año'] = df_enso['año'].astype(int)
-    # Crear una columna de fecha para la fusión
-    df_enso['fecha_merge'] = pd.to_datetime(df_enso['año'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
+    # Crear una columna de Fecha para la fusión
+    df_enso['Fecha_merge'] = pd.to_datetime(df_enso['año'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
 
 except Exception as e:
     st.error(f"Error en el preprocesamiento del archivo ENSO: {e}")
@@ -311,8 +311,8 @@ df_analisis = df_long.copy()
 
 # Fusión con los datos ENSO
 try:
-    df_analisis['fecha_merge'] = pd.to_datetime(df_analisis['Fecha'].dt.strftime('%Y-%b'))
-    df_analisis = pd.merge(df_analisis, df_enso[['fecha_merge', 'Anomalia_ONI', 'ENSO']], on='fecha_merge', how='left')
+    df_analisis['Fecha_merge'] = pd.to_datetime(df_analisis['Fecha'].dt.strftime('%Y-%b'))
+    df_analisis = pd.merge(df_analisis, df_enso[['Fecha_merge', 'Anomalia_ONI', 'ENSO']], on='Fecha_merge', how='left')
     df_analisis = df_analisis.dropna(subset=['ENSO'])
 
     # Agrupar datos por evento ENSO
