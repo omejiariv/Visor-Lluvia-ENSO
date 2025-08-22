@@ -119,12 +119,9 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # --- Preprocesamiento de datos de ENSO ---
     try:
         # Reemplazar comas por puntos para convertir a float
-        if 'Anomalia_ONI' in df_enso.columns and pd.api.types.is_object_dtype(df_enso['Anomalia_ONI']):
-            df_enso['Anomalia_ONI'] = df_enso['Anomalia_ONI'].str.replace(',', '.', regex=True).astype(float)
-        if 'Temp_SST' in df_enso.columns and pd.api.types.is_object_dtype(df_enso['Temp_SST']):
-            df_enso['Temp_SST'] = df_enso['Temp_SST'].str.replace(',', '.', regex=True).astype(float)
-        if 'Temp_media' in df_enso.columns and pd.api.types.is_object_dtype(df_enso['Temp_media']):
-            df_enso['Temp_media'] = df_enso['Temp_media'].str.replace(',', '.', regex=True).astype(float)
+        for col in ['Anomalia_ONI', 'Temp_SST', 'Temp_media']:
+            if col in df_enso.columns and pd.api.types.is_object_dtype(df_enso[col]):
+                df_enso[col] = df_enso[col].str.replace(',', '.', regex=True).astype(float)
 
         # Mapeo manual de meses de español a inglés
         meses_es_en = {
@@ -148,11 +145,14 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         if 'Id_estacio' in df_precip_anual.columns:
              df_precip_anual = df_precip_anual.rename(columns={'Id_estacio': 'Id_estacion'})
 
-        # Convertir Longitud y Latitud a tipo numérico, verificando primero si son strings
+        # Convertir Longitud y Latitud a tipo numérico
         if 'Longitud' in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual['Longitud']):
             df_precip_anual['Longitud'] = df_precip_anual['Longitud'].str.replace(',', '.', regex=True).astype(float)
         if 'Latitud' in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual['Latitud']):
             df_precip_anual['Latitud'] = df_precip_anual['Latitud'].str.replace(',', '.', regex=True).astype(float)
+            
+        # Unir el GeoDataFrame con los datos de las estaciones del CSV
+        gdf = gdf.merge(df_precip_anual[['Nom_Est', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est', how='inner')
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo de estaciones (mapaCVENSO.csv): {e}")
         st.stop()
@@ -162,7 +162,8 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
         
         # Identificar columnas de estaciones para melt
-        station_cols = [col for col in df_precip_mensual.columns if col.isdigit()]
+        # Filtrar por columnas que son strings de 8 dígitos numéricos, lo cual parece ser el formato de Id_estacion
+        station_cols = [col for col in df_precip_mensual.columns if col.isdigit() and len(col) == 8]
         
         df_long = df_precip_mensual.melt(
             id_vars=['Id_Fecha', 'año', 'mes'], 
@@ -184,13 +185,10 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.stop()
 
     # --- Mapeo de estaciones ---
-    # Usar el nombre de columna unificado 'Id_estacion'
+    # Unir la información de las estaciones a los datos mensuales
     station_mapping = df_precip_anual[['Id_estacion', 'Nom_Est']].set_index('Id_estacion').to_dict()['Nom_Est']
     df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
     df_long = df_long.dropna(subset=['Nom_Est'])
-    
-    # Unir el GeoDataFrame con los datos de las estaciones
-    gdf = gdf.merge(df_precip_anual[['Nom_Est', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est', how='inner')
     
     # --- Controles en la barra lateral ---
     staciones_list = sorted(df_precip_anual['Nom_Est'].unique())
