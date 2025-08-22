@@ -165,7 +165,11 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         
     # --- Preprocesamiento de datos de precipitación mensual ---
     try:
-        df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
+        # Estandarizar nombres de columnas para evitar errores de coincidencia
+        df_precip_mensual.columns = df_precip_mensual.columns.str.lower().str.replace(' ', '').str.replace('á', 'a').str.replace('ñ', 'n').str.replace('í', 'i')
+        
+        # Renombrar columnas para consistencia si es necesario
+        df_precip_mensual.rename(columns={'año': 'Year', 'mes': 'Mes'}, inplace=True)
         
         # Identificar columnas de estaciones para melt
         station_cols = [col for col in df_precip_mensual.columns if col.isdigit() and len(col) == 8]
@@ -175,18 +179,16 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
             st.stop()
             
         df_long = df_precip_mensual.melt(
-            id_vars=['Id_Fecha', 'año', 'mes'], 
+            id_vars=['id_fecha', 'Year', 'Mes'], 
             value_vars=station_cols,
             var_name='Id_estacion', 
             value_name='Precipitation'
         )
         
-        # Renombrar columnas para consistencia y convertir tipos
-        df_long = df_long.rename(columns={'año': 'Year', 'mes': 'Mes'})
+        # Convertir a fecha y crear la columna de fecha para la fusión
         df_long['Precipitation'] = df_long['Precipitation'].replace('n.d', np.nan).astype(float)
         df_long = df_long.dropna(subset=['Precipitation'])
         
-        # Convertir a fecha y crear la columna de fecha para la fusión
         df_long['Fecha'] = pd.to_datetime(df_long['Year'].astype(str) + '-' + df_long['Mes'].astype(str), format='%Y-%m')
         
     except Exception as e:
