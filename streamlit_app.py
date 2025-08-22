@@ -252,10 +252,9 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     df_precip_anual_filtered_melted = df_precip_anual_filtered_melted[
         (df_precip_anual_filtered_melted['Año'] >= year_range[0]) &
         (df_precip_anual_filtered_melted['Año'] <= year_range[1])
-    ].copy() # Usar .copy() para evitar SettingWithCopyWarning y problemas de renderizado en Altair
+    ].copy() 
 
     if not df_precip_anual_filtered_melted.empty:
-        # Habilitar selección interactiva de la leyenda con Altair
         selection_anual = alt.selection_point(fields=['Nom_Est'], bind='legend')
         chart_anual = alt.Chart(df_precip_anual_filtered_melted).mark_line().encode(
             x=alt.X('Año:O', title='Año'),
@@ -278,10 +277,9 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         (df_monthly_total['Nom_Est'].isin(filtered_stations)) &
         (df_monthly_total['Year'] >= year_range[0]) &
         (df_monthly_total['Year'] <= year_range[1])
-    ].copy() # Usar .copy() para evitar SettingWithCopyWarning y problemas de renderizado en Altair
+    ].copy() 
 
     if not df_monthly_filtered.empty:
-        # Habilitar selección interactiva de la leyenda con Altair
         selection_mensual = alt.selection_point(fields=['Nom_Est'], bind='legend')
         chart_mensual = alt.Chart(df_monthly_filtered).mark_line().encode(
             x=alt.X('Fecha:T', title='Fecha'),
@@ -413,9 +411,3 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     2. Seleccione **"Imprimir..."**.
     3. En el destino, elija **"Guardar como PDF"**.
     """)
-
----
-
-### **Requisitos del Proyecto**
-
-Por favor, reemplace su archivo `requirements.txt` actual con el siguiente para asegurarse de que solo se instalen las librerías necesarias y evitar futuros errores de instalación:
