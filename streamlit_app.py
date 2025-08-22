@@ -13,7 +13,6 @@ import zipfile
 import tempfile
 import os
 import io
-import requests
 import numpy as np
 from datetime import datetime
 
@@ -26,7 +25,9 @@ def load_data(file_path, sep=';'):
     Carga datos desde un archivo local, asumiendo un formato de archivo CSV.
     """
     try:
-        return pd.read_csv(file_path, sep=sep, encoding='latin1')
+        df = pd.read_csv(file_path, sep=sep, encoding='latin1')
+        df.columns = df.columns.str.strip()  # Elimina espacios en blanco en los nombres de las columnas
+        return df
     except Exception as e:
         st.error(f"Ocurrió un error al cargar los datos: {e}")
         return None
@@ -37,24 +38,17 @@ def load_shapefile(file_path):
     asigna el CRS correcto y lo convierte a WGS84.
     """
     try:
-        zip_file_obj = file_path
-        
         with tempfile.TemporaryDirectory() as temp_dir:
-            with zipfile.ZipFile(zip_file_obj, 'r') as zip_ref:
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir)
             
             shp_path = [f for f in os.listdir(temp_dir) if f.endswith('.shp')][0]
             
-            # Cargar el shapefile sin CRS asignado
             gdf = gpd.read_file(os.path.join(temp_dir, shp_path))
             
-            # Asignar el CRS correcto (MAGNA-SIRGAS, EPSG:9377)
             gdf.set_crs("EPSG:9377", inplace=True)
-            
-            # Convertir a WGS84 (EPSG:4326) para Folium
             gdf = gdf.to_crs("EPSG:4326")
             return gdf
-
     except Exception as e:
         st.error(f"Error al procesar el shapefile: {e}")
         return None
@@ -77,10 +71,7 @@ uploaded_file_precip = st.sidebar.file_uploader("3. Cargar archivo de precipitac
 uploaded_zip_shapefile = st.sidebar.file_uploader("4. Cargar shapefile (.zip)", type="zip")
 
 # Proceso de carga de datos
-df_precip_anual = None
-df_enso = None
-df_precip_mensual = None
-gdf = None
+df_precip_anual, df_enso, df_precip_mensual, gdf = None, None, None, None
 
 if uploaded_file_mapa and uploaded_file_enso and uploaded_file_precip and uploaded_zip_shapefile:
     df_precip_anual = load_data(uploaded_file_mapa)
@@ -94,15 +85,25 @@ else:
 # Si todos los DataFrames se cargaron correctamente, se procede con el resto de la aplicación
 if df_precip_anual is not None and df_enso is not None and df_precip_mensual is not None and gdf is not None:
     
+    # --- Validar la existencia de columnas clave ---
+    required_precip_cols = ['Id_Fecha']
+    required_station_cols = ['Id_estacion']
+
+    if not all(col in df_precip_mensual.columns for col in required_precip_cols):
+        st.error(f"Error: El archivo de precipitación no contiene la columna requerida: {required_precip_cols[0]}.")
+        st.stop()
+    
+    if not all(col in df_precip_anual.columns for col in required_station_cols):
+        st.error(f"Error: El archivo de estaciones no contiene la columna requerida: {required_station_cols[0]}.")
+        st.stop()
+
     # --- Preprocesamiento de datos de precipitación mensual ---
     try:
-        df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
         df_precip_mensual['Fecha'] = pd.to_datetime(df_precip_mensual['Id_Fecha'], format='%d/%m/%Y')
         df_precip_mensual['Year'] = df_precip_mensual['Fecha'].dt.year
         df_precip_mensual['Mes'] = df_precip_mensual['Fecha'].dt.month
         
         df_long = df_precip_mensual.melt(id_vars=['Fecha', 'Year', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
-        
         df_long['Precipitation'] = df_long['Precipitation'].replace('n.d', np.nan).astype(float)
         df_long = df_long.dropna(subset=['Precipitation'])
 
@@ -112,7 +113,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # --- Preprocesamiento de datos ENSO ---
     try:
-        df_enso.columns = df_enso.columns.str.strip()
         df_enso['Year'] = df_enso['Year'].astype(int)
         df_enso['fecha_merge'] = pd.to_datetime(df_enso['Year'].astype(str) + '-' + df_enso['mes'], format='%Y-%b').dt.strftime('%Y-%m')
 
@@ -158,6 +158,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # --- Sección de Visualizaciones ---
     st.header("Visualizaciones de Precipitación 💧")
+    # ... (El resto del código de visualizaciones y análisis ENSO es el mismo) ...
 
     # Gráfico de Serie de Tiempo Anual
     st.subheader("Precipitación Anual Total (mm)")
@@ -170,7 +171,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     )
     df_precip_anual_filtered_melted['Año'] = df_precip_anual_filtered_melted['Año'].astype(int)
 
-    # Filtrar por el rango de años
     df_precip_anual_filtered_melted = df_precip_anual_filtered_melted[
         (df_precip_anual_filtered_melted['Año'] >= year_range[0]) &
         (df_precip_anual_filtered_melted['Año'] <= year_range[1])
@@ -262,10 +262,8 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.header("Análisis de Precipitación y el Fenómeno ENSO")
     st.markdown("Esta sección explora la relación entre la precipitación y los eventos de El Niño-Oscilación del Sur.")
 
-    # Preparar los datos para el análisis
     df_analisis = df_long.copy()
 
-    # Fusión con los datos ENSO
     try:
         df_analisis['fecha_merge'] = df_analisis['Fecha'].dt.strftime('%Y-%m')
         df_analisis = pd.merge(df_analisis, df_enso[['fecha_merge', 'Anomalia_ONI', 'ENSO']], on='fecha_merge', how='left')
