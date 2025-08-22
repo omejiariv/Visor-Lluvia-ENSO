@@ -15,7 +15,6 @@ import os
 import io
 import numpy as np
 from datetime import datetime
-import locale
 
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", page_icon="☔")
@@ -30,7 +29,7 @@ def load_data(file_path, sep=';'):
     for encoding in encodings_to_try:
         try:
             # Intenta leer el archivo con la codificación actual
-            df = pd.read_csv(io.BytesIO(file_path.getvalue()), sep=sep, encoding=encoding)
+            df = pd.read_csv(file_path, sep=sep, encoding=encoding)
             df.columns = df.columns.str.strip()  # Elimina espacios en blanco en los nombres de las columnas
             return df
         except UnicodeDecodeError:
@@ -114,20 +113,16 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # --- Preprocesamiento de datos ENSO ---
     try:
-        # Intenta establecer la configuración regional en español, si está disponible
-        try:
-            locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
-        except locale.Error:
-            try:
-                locale.setlocale(locale.LC_TIME, 'es_ES')
-            except locale.Error:
-                st.warning("No se pudo establecer la configuración regional en español. La conversión de fechas podría fallar.")
+        # Mapeo manual de meses de español a inglés
+        meses_es_en = {
+            'ene': 'Jan', 'feb': 'Feb', 'mar': 'Mar', 'abr': 'Apr',
+            'may': 'May', 'jun': 'Jun', 'jul': 'Jul', 'ago': 'Aug',
+            'sep': 'Sep', 'oct': 'Oct', 'nov': 'Nov', 'dic': 'Dec'
+        }
         
         df_enso['Year'] = df_enso['Year'].astype(int)
-        df_enso['fecha_merge'] = pd.to_datetime(df_enso['Year'].astype(str) + '-' + df_enso['mes'], format='%Y-%b').dt.strftime('%Y-%m')
-        
-        # Restaura la configuración regional a su valor original
-        locale.setlocale(locale.LC_TIME, '')
+        df_enso['mes_en'] = df_enso['mes'].str.lower().map(meses_es_en)
+        df_enso['fecha_merge'] = pd.to_datetime(df_enso['Year'].astype(str) + '-' + df_enso['mes_en'], format='%Y-%b').dt.strftime('%Y-%m')
 
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo ENSO: {e}")
