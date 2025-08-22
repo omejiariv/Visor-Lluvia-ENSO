@@ -71,7 +71,10 @@ def load_shapefile(file_path):
             
             gdf = gpd.read_file(os.path.join(temp_dir, shp_path))
             
-            gdf.set_crs("EPSG:9377", inplace=True)
+            # Se asume el CRS del archivo y se convierte a WGS84
+            # Si el shapefile no tiene un CRS, se le asigna 9377 y se transforma
+            if gdf.crs is None:
+                gdf.set_crs("EPSG:9377", inplace=True)
             gdf = gdf.to_crs("EPSG:4326")
             return gdf
     except Exception as e:
@@ -110,25 +113,13 @@ else:
 # Si todos los DataFrames se cargaron correctamente, se procede con el resto de la aplicación
 if df_precip_anual is not None and df_enso is not None and df_precip_mensual is not None and gdf is not None:
     
-    # --- Preprocesamiento de datos de precipitación mensual ---
+    # --- Preprocesamiento de datos de ENSO ---
     try:
-        df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
-        # Se renombra la columna para consistencia, usando el nombre correcto del archivo
-        df_precip_mensual = df_precip_mensual.rename(columns={'Id_Fecha': 'Fecha'})
-        df_precip_mensual['Fecha'] = pd.to_datetime(df_precip_mensual['Fecha'], format='%d/%m/%Y')
-        df_precip_mensual['Year'] = df_precip_mensual['Fecha'].dt.year
-        df_precip_mensual['Mes'] = df_precip_mensual['Fecha'].dt.month
-        
-        df_long = df_precip_mensual.melt(id_vars=['Fecha', 'Year', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
-        df_long['Precipitation'] = df_long['Precipitation'].replace('n.d', np.nan).astype(float)
-        df_long = df_long.dropna(subset=['Precipitation'])
+        # Reemplazar comas por puntos para convertir a float
+        df_enso['Anomalia_ONI'] = df_enso['Anomalia_ONI'].str.replace(',', '.', regex=True).astype(float)
+        df_enso['Temp_SST'] = df_enso['Temp_SST'].str.replace(',', '.', regex=True).astype(float)
+        df_enso['Temp_media'] = df_enso['Temp_media'].str.replace(',', '.', regex=True).astype(float)
 
-    except Exception as e:
-        st.error(f"Error en el preprocesamiento del archivo de precipitación mensual: {e}")
-        st.stop()
-
-    # --- Preprocesamiento de datos ENSO ---
-    try:
         # Mapeo manual de meses de español a inglés
         meses_es_en = {
             'ene': 'Jan', 'feb': 'Feb', 'mar': 'Mar', 'abr': 'Apr',
@@ -143,12 +134,53 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo ENSO: {e}")
         st.stop()
+    
+    # --- Preprocesamiento de datos de precipitación anual (mapa) ---
+    try:
+        df_precip_anual.columns = df_precip_anual.columns.str.strip()
+        df_precip_anual = df_precip_anual.rename(columns={'Id_estacion': 'Id_estacio'})
+
+        # Convertir Longitud y Latitud a tipo numérico
+        df_precip_anual['Longitud'] = df_precip_anual['Longitud'].str.replace(',', '.', regex=True).astype(float)
+        df_precip_anual['Latitud'] = df_precip_anual['Latitud'].str.replace(',', '.', regex=True).astype(float)
+    except Exception as e:
+        st.error(f"Error en el preprocesamiento del archivo de estaciones (mapaCVENSO.csv): {e}")
+        st.stop()
         
+    # --- Preprocesamiento de datos de precipitación mensual ---
+    try:
+        df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
+        
+        # Identificar columnas de estaciones para melt
+        station_cols = [col for col in df_precip_mensual.columns if col.startswith('1')]
+        
+        df_long = df_precip_mensual.melt(
+            id_vars=['Id_Fecha', 'año', 'mes'], 
+            value_vars=station_cols,
+            var_name='Id_estacion', 
+            value_name='Precipitation'
+        )
+        
+        # Renombrar columnas para consistencia y convertir tipos
+        df_long = df_long.rename(columns={'año': 'Year', 'mes': 'Mes'})
+        df_long['Precipitation'] = df_long['Precipitation'].replace('n.d', np.nan).astype(float)
+        df_long = df_long.dropna(subset=['Precipitation'])
+        
+        # Convertir a fecha y crear la columna de fecha para la fusión
+        df_long['Fecha'] = pd.to_datetime(df_long['Year'].astype(str) + '-' + df_long['Mes'].astype(str), format='%Y-%m')
+        
+    except Exception as e:
+        st.error(f"Error en el preprocesamiento del archivo de precipitación mensual: {e}")
+        st.stop()
+
     # --- Mapeo de estaciones ---
-    # Se corrige el nombre de la columna 'Id_estacion' a 'Id_estacio'
     station_mapping = df_precip_anual[['Id_estacio', 'Nom_Est']].set_index('Id_estacio').to_dict()['Nom_Est']
     df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
-
+    df_long = df_long.dropna(subset=['Nom_Est'])
+    
+    # Unir el GeoDataFrame con los datos de las estaciones
+    gdf = gdf.merge(df_precip_anual[['Nom_Est', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est', how='inner')
+    
     # --- Controles en la barra lateral ---
     staciones_list = sorted(df_precip_anual['Nom_Est'].unique())
     selected_stations = st.sidebar.multiselect(
@@ -158,7 +190,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     )
 
     # Filtro de años
-    años_disponibles = sorted(df_precip_anual.columns[2:54].astype(int).tolist())
+    años_disponibles = sorted([int(col) for col in df_precip_anual.columns if col.isdigit()])
     year_range = st.sidebar.slider(
         "Seleccione el rango de años",
         min_value=min(años_disponibles),
@@ -188,12 +220,11 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.subheader("Precipitación Anual Total (mm)")
     df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est'].isin(filtered_stations)].copy()
     
-    # Identificar y usar solo las columnas de años para el melt
     year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
     
     df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
         id_vars=['Nom_Est'], 
-        value_vars=year_cols,  # Especifica las columnas a derretir
+        value_vars=year_cols,
         var_name='Año', 
         value_name='Precipitación'
     )
@@ -264,7 +295,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # Mapa Animado (Plotly)
     st.subheader("Mapa Animado de Precipitación Anual")
     st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
-    if not df_precip_anual_filtered_melted.empty:
+    if not df_precip_anual_filtered_melted.empty and not gdf_filtered.empty:
         fig_mapa_animado = px.scatter_geo(
             df_precip_anual_filtered_melted.merge(gdf_filtered, on='Nom_Est', how='inner'),
             lat='Latitud',
