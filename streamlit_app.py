@@ -548,13 +548,15 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
                         z_grid = griddata(points, values, (grid_x, grid_y), method='linear')
                     
                     if z_grid is not None and not np.isnan(z_grid).all() and z_grid.size > 0:
-                        fig_interp = go.Figure(data=go.Contour(
-                            x=lon_grid,
-                            y=lat_grid,
-                            z=z_grid.T, # <--- ¡Corrección clave!
+                        fig_interp = go.Figure(data=go.Contourgeo(
+                            lon=lon_grid,
+                            lat=lat_grid,
+                            z=z_grid.T, # <--- La transposición sigue siendo necesaria
                             colorscale='YlGnBu',
+                            colorbar_title="Precipitación (mm)",
                             contours_showlabels=True,
-                            line_smoothing=0.85
+                            zmin=z_grid.min(),
+                            zmax=z_grid.max(),
                         ))
 
                         fig_interp.add_trace(go.Scattergeo(
