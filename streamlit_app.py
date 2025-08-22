@@ -138,11 +138,15 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # --- Preprocesamiento de datos de precipitación anual (mapa) ---
     try:
         df_precip_anual.columns = df_precip_anual.columns.str.strip()
-        df_precip_anual = df_precip_anual.rename(columns={'Id_estacion': 'Id_estacio'})
+        # El usuario ha reportado que la columna es 'Id_estacio', no 'Id_estacion'
+        if 'Id_estacion' in df_precip_anual.columns:
+             df_precip_anual = df_precip_anual.rename(columns={'Id_estacion': 'Id_estacio'})
 
-        # Convertir Longitud y Latitud a tipo numérico
-        df_precip_anual['Longitud'] = df_precip_anual['Longitud'].str.replace(',', '.', regex=True).astype(float)
-        df_precip_anual['Latitud'] = df_precip_anual['Latitud'].str.replace(',', '.', regex=True).astype(float)
+        # Convertir Longitud y Latitud a tipo numérico, verificando primero si son strings
+        if pd.api.types.is_object_dtype(df_precip_anual['Longitud']):
+            df_precip_anual['Longitud'] = df_precip_anual['Longitud'].str.replace(',', '.', regex=True).astype(float)
+        if pd.api.types.is_object_dtype(df_precip_anual['Latitud']):
+            df_precip_anual['Latitud'] = df_precip_anual['Latitud'].str.replace(',', '.', regex=True).astype(float)
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo de estaciones (mapaCVENSO.csv): {e}")
         st.stop()
@@ -152,7 +156,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
         
         # Identificar columnas de estaciones para melt
-        station_cols = [col for col in df_precip_mensual.columns if col.startswith('1')]
+        station_cols = [col for col in df_precip_mensual.columns if col.isdigit()]
         
         df_long = df_precip_mensual.melt(
             id_vars=['Id_Fecha', 'año', 'mes'], 
@@ -190,7 +194,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     )
 
     # Filtro de años
-    años_disponibles = sorted([int(col) for col in df_precip_anual.columns if col.isdigit()])
+    años_disponibles = sorted([int(col) for col in df_precip_anual.columns if str(col).isdigit()])
     year_range = st.sidebar.slider(
         "Seleccione el rango de años",
         min_value=min(años_disponibles),
