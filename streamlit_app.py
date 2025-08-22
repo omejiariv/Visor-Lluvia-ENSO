@@ -209,12 +209,57 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # --- Controles en la barra lateral ---
     staciones_list = sorted(gdf_stations['Nom_Est'].unique())
-    selected_stations = st.sidebar.multiselect(
-        'Seleccione una o varias estaciones', 
-        options=staciones_list,
-        default=staciones_list[:5]
-    )
-    selected_stations_clean = [gdf_stations[gdf_stations['Nom_Est'] == s]['Nom_Est_clean'].iloc[0] for s in selected_stations if s in gdf_stations['Nom_Est'].values]
+    celdas_list = sorted(gdf_stations['Celda_XY'].unique())
+    municipios_list = sorted(gdf_stations['municipio'].unique())
+
+    # Nuevo control para seleccionar todas las estaciones
+    select_all_stations = st.sidebar.checkbox('Seleccionar todas las estaciones', value=False)
+
+    if select_all_stations:
+        filtered_stations = staciones_list
+        st.sidebar.info("Todas las estaciones han sido seleccionadas. Para usar los filtros, desmarque esta opción.")
+    else:
+        # Selección manual de estaciones
+        selected_stations_manual = st.sidebar.multiselect(
+            'Seleccione una o varias estaciones', 
+            options=staciones_list,
+            default=[]
+        )
+        
+        # Selección por municipio
+        selected_municipios = st.sidebar.multiselect(
+            'Filtrar por municipio',
+            options=municipios_list,
+            default=[]
+        )
+
+        # Selección por celda
+        selected_celdas = st.sidebar.multiselect(
+            'Filtrar por celda (Celda_XY)',
+            options=celdas_list,
+            default=[]
+        )
+
+        # Lógica de filtrado unificada (operador OR)
+        filtered_stations = set(selected_stations_manual)
+        
+        if selected_municipios:
+            stations_from_municipios = gdf_stations[gdf_stations['municipio'].isin(selected_municipios)]['Nom_Est'].tolist()
+            filtered_stations.update(stations_from_municipios)
+
+        if selected_celdas:
+            stations_from_celdas = gdf_stations[gdf_stations['Celda_XY'].isin(selected_celdas)]['Nom_Est'].tolist()
+            filtered_stations.update(stations_from_celdas)
+
+        filtered_stations = sorted(list(filtered_stations))
+        
+        # Manejar caso de no selección
+        if not filtered_stations:
+            st.warning("No hay estaciones seleccionadas. Por favor, seleccione al menos una estación, municipio o celda.")
+            st.stop()
+
+    selected_stations_clean = [gdf_stations[gdf_stations['Nom_Est'] == s]['Nom_Est_clean'].iloc[0] for s in filtered_stations if s in gdf_stations['Nom_Est'].values]
+
     años_disponibles = sorted([int(col) for col in gdf_stations.columns if str(col).isdigit() and len(str(col)) == 4])
     year_range = st.sidebar.slider(
         "Seleccione el rango de años",
@@ -222,18 +267,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         max_value=max(años_disponibles),
         value=(min(años_disponibles), max(años_disponibles))
     )
-    municipios_list = sorted(gdf_stations['municipio'].unique())
-    selected_municipios = st.sidebar.multiselect(
-        'Filtrar por municipio',
-        options=municipios_list,
-        default=[]
-    )
-    if selected_municipios:
-        filtered_stations_by_municipio = gdf_stations[gdf_stations['municipio'].isin(selected_municipios)]['Nom_Est'].tolist()
-        filtered_stations = [s for s in selected_stations if s in filtered_stations_by_municipio]
-    else:
-        filtered_stations = selected_stations
-    filtered_stations_clean = [gdf_stations[gdf_stations['Nom_Est'] == s]['Nom_Est_clean'].iloc[0] for s in filtered_stations if s in gdf_stations['Nom_Est'].values]
 
     # --- Sección de Visualizaciones ---
     st.header("Visualizaciones de Precipitación 💧")
@@ -243,7 +276,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     df_precip_anual_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
     year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
     df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
-        id_vars=['Nom_Est', 'Nom_Est_clean', 'Latitud_geo', 'Longitud_geo', 'municipio'], 
+        id_vars=['Nom_Est', 'Nom_Est_clean', 'Latitud_geo', 'Longitud_geo', 'municipio', 'Celda_XY'], 
         value_vars=year_cols,
         var_name='Año', 
         value_name='Precipitación'
@@ -298,14 +331,14 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.subheader("Mapa de Estaciones de Lluvia en Colombia")
     st.markdown("Ubicación de las estaciones seleccionadas.")
 
-    gdf_filtered = gdf_stations[gdf_stations['Nom_Est_clean'].isin(filtered_stations_clean)].copy()
+    gdf_filtered = gdf_stations[gdf_stations['Nom_Est_clean'].isin(selected_stations_clean)].copy()
 
     if not gdf_filtered.empty:
         m = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
         for _, row in gdf_filtered.iterrows():
             folium.Marker(
                 location=[row['Latitud_geo'], row['Longitud_geo']],
-                tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}",
+                tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
                 icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
             ).add_to(m)
         folium_static(m, width=900, height=600)
