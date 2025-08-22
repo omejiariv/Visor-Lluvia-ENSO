@@ -263,7 +263,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
     
     df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
-        id_vars=['Nom_Est', 'Nom_Est_clean'], 
+        id_vars=['Nom_Est', 'Nom_Est_clean', 'Latitud_geo', 'Longitud_geo', 'municipio'], 
         value_vars=year_cols,
         var_name='Año', 
         value_name='Precipitación'
