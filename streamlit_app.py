@@ -23,14 +23,23 @@ st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", p
 def load_data(file_path, sep=';'):
     """
     Carga datos desde un archivo local, asumiendo un formato de archivo CSV.
+    Intenta decodificar con varias codificaciones comunes para mayor compatibilidad.
     """
-    try:
-        df = pd.read_csv(io.StringIO(file_path.getvalue().decode('utf-8')), sep=sep)
-        df.columns = df.columns.str.strip()  # Elimina espacios en blanco en los nombres de las columnas
-        return df
-    except Exception as e:
-        st.error(f"Ocurrió un error al cargar los datos: {e}")
-        return None
+    encodings_to_try = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+    for encoding in encodings_to_try:
+        try:
+            # Intenta leer el archivo con la codificación actual
+            df = pd.read_csv(io.BytesIO(file_path.getvalue()), sep=sep, encoding=encoding)
+            df.columns = df.columns.str.strip()  # Elimina espacios en blanco en los nombres de las columnas
+            return df
+        except UnicodeDecodeError:
+            continue  # Si falla, intenta con la siguiente codificación
+        except Exception as e:
+            st.error(f"Ocurrió un error al cargar los datos: {e}")
+            return None
+    
+    st.error("No se pudo decodificar el archivo con ninguna de las codificaciones probadas (utf-8, latin1, cp1252, iso-8859-1). Por favor, verifique la codificación del archivo.")
+    return None
 
 def load_shapefile(file_path):
     """
