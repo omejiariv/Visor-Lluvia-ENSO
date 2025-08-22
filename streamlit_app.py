@@ -201,10 +201,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     gdf['Nom_Est_clean'] = gdf['Nom_Est'].astype(str).str.upper().str.strip()
     gdf['Nom_Est_clean'] = gdf['Nom_Est_clean'].apply(lambda x: re.sub(r'[^A-Z0-9]', '', x))
     
-    # La fusión ya no se usa para el mapa de puntos, pero se mantiene para la consistencia
-    # de los datos de las estaciones si se necesitara en otros gráficos.
-    # No obstante, el principal dataframe para los puntos del mapa será gdf_stations.
-    
     # Unir la información de las estaciones a los datos mensuales usando los IDs correctos
     gdf_stations['Id_estacio'] = gdf_stations['Id_estacio'].astype(str).str.strip()
     df_long['Id_estacion'] = df_long['Id_estacion'].astype(str).str.strip()
@@ -339,11 +335,10 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # Mapa Animado (Plotly)
     st.subheader("Mapa Animado de Precipitación Anual")
     st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
-    if not df_precip_anual_filtered_melted.empty and not gdf_stations.empty:
-        # Usamos gdf_stations para la unión ya que tiene las coordenadas
-        df_plot = df_precip_anual_filtered_melted.merge(gdf_stations[['Nom_Est_clean', 'Nom_Est', 'Latitud_geo', 'Longitud_geo']], on='Nom_Est_clean', how='inner')
+    if not df_precip_anual_filtered_melted.empty:
+        # El DataFrame ya contiene las coordenadas, no se necesita la fusión
         fig_mapa_animado = px.scatter_geo(
-            df_plot,
+            df_precip_anual_filtered_melted,
             lat='Latitud_geo',
             lon='Longitud_geo',
             color='Precipitación',
