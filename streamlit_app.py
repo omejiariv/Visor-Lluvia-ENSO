@@ -355,7 +355,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
         with tab_auto:
             st.info("El mapa se centra y ajusta automáticamente a las estaciones seleccionadas.")
-            # Centrado automático basado en el bounding box de las estaciones
             m_auto = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
             bounds = gdf_filtered.total_bounds
             m_auto.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
@@ -427,7 +426,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
                 width=1000,
                 height=700
             )
-            # Centrado automático del mapa animado usando fitbounds
             fig_mapa_animado.update_geos(fitbounds="locations", showcountries=True, countrycolor="black")
             st.plotly_chart(fig_mapa_animado, use_container_width=True)
 
@@ -461,10 +459,16 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
                 width=1000,
                 height=700
             )
-            fig_mapa_animado_predef.update_geos(
-                center={'lat': st.session_state.anim_map_view['location'][0], 'lon': st.session_state.anim_map_view['location'][1]},
-                zoom=st.session_state.anim_map_view['zoom'],
-                showcountries=True, countrycolor="black"
+            # Corrección: Uso de la estructura de diccionario para el layout.geo.center y layout.geo.projection.
+            fig_mapa_animado_predef.update_layout(
+                geo = dict(
+                    center = dict(
+                        lat=st.session_state.anim_map_view['location'][0], 
+                        lon=st.session_state.anim_map_view['location'][1]
+                    ),
+                    projection_scale=st.session_state.anim_map_view['zoom'],
+                    showcountries=True, countrycolor="black"
+                )
             )
             st.plotly_chart(fig_mapa_animado_predef, use_container_width=True)
 
@@ -476,22 +480,18 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.header("📋 Información Detallada de las Estaciones")
     st.markdown("Esta tabla muestra información relevante para las estaciones seleccionadas, incluyendo la precipitación media anual calculada para el rango de años elegido.")
 
-    # Calcular la precipitación media anual para las estaciones y el rango de años seleccionados
     df_mean_precip = df_precip_anual_filtered_melted.groupby('Nom_Est')['Precipitación'].mean().reset_index()
     df_mean_precip.rename(columns={'Precipitación': 'Precipitación media anual (mm)'}, inplace=True)
     df_mean_precip['Precipitación media anual (mm)'] = df_mean_precip['Precipitación media anual (mm)'].round(2)
     
-    # Unir la información de la estación con la precipitación media anual calculada
     gdf_info_table = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
     gdf_info_table = gdf_info_table.merge(df_mean_precip, on='Nom_Est', how='left')
 
-    # Seleccionar y reordenar las columnas según la solicitud
     columns_to_show = [
         'Nom_Est', 'Porc_datos', 'Celda_XY', 'Cant_Est', 'departamento', 'municipio', 'AHZ', 'SZH', 
         'Longitud', 'Latitud', 'vereda', 'SUBREGION', 'Precipitación media anual (mm)'
     ]
     
-    # Asegurarse de que todas las columnas existan antes de seleccionarlas
     existing_columns = [col for col in columns_to_show if col in gdf_info_table.columns]
     df_info_table = gdf_info_table[existing_columns].copy()
 
