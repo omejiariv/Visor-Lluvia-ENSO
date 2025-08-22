@@ -206,23 +206,23 @@ df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est'].isin(filte
 df_precip_anual_filtered = df_precip_anual_filtered.loc[:, df_precip_anual_filtered.columns.astype(str).str.contains('^Id_estacion|Nom_Est|\\d{4}$')]
 df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
     id_vars=['Nom_Est'], 
-    var_name='Año', 
+    var_name='año', 
     value_name='Precipitación'
 )
-df_precip_anual_filtered_melted['Año'] = df_precip_anual_filtered_melted['Año'].astype(int)
+df_precip_anual_filtered_melted['año'] = df_precip_anual_filtered_melted['año'].astype(int)
 
 # Filtrar por el rango de años
 df_precip_anual_filtered_melted = df_precip_anual_filtered_melted[
-    (df_precip_anual_filtered_melted['Año'] >= año_range[0]) &
-    (df_precip_anual_filtered_melted['Año'] <= año_range[1])
+    (df_precip_anual_filtered_melted['año'] >= año_range[0]) &
+    (df_precip_anual_filtered_melted['año'] <= año_range[1])
 ]
 
 if not df_precip_anual_filtered_melted.empty:
     chart_anual = alt.Chart(df_precip_anual_filtered_melted).mark_line().encode(
-        x=alt.X('Año:O', title='Año'),
+        x=alt.X('año:O', title='año'),
         y=alt.Y('Precipitación:Q', title='Precipitación Total (mm)'),
         color='Nom_Est:N',
-        tooltip=['Nom_Est', 'Año', 'Precipitación']
+        tooltip=['Nom_Est', 'año', 'Precipitación']
     ).properties(
         title='Precipitación Anual Total por Estación'
     ).interactive()
@@ -288,7 +288,7 @@ if not df_precip_anual_filtered_melted.empty:
         color='Precipitación',
         size='Precipitación',
         hover_name='Nom_Est',
-        animation_frame='Año',
+        animation_frame='año',
         projection='natural earth',
         title='Precipitación Anual de las Estaciones',
         color_continuous_scale=px.colors.sequential.RdBu
