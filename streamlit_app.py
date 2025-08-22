@@ -18,7 +18,17 @@ import re
 from datetime import datetime
 from shapely.geometry import Point
 import base64
-from folium.plugins import ScaleControl
+
+# --- Manejo del error de importación de ScaleControl ---
+try:
+    from folium.plugins import ScaleControl
+except ImportError:
+    st.warning("El plugin 'ScaleControl' de Folium no está disponible. El mapa funcionará, pero no mostrará la barra de escala.")
+    class ScaleControl:
+        def __init__(self, *args, **kwargs):
+            pass
+        def add_to(self, m):
+            pass
 
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", page_icon="☔")
@@ -349,7 +359,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
             m_auto = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
             bounds = gdf_filtered.total_bounds
             m_auto.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-            folium.plugins.ScaleControl().add_to(m_auto)
+            ScaleControl().add_to(m_auto)
 
             for _, row in gdf_filtered.iterrows():
                 folium.Marker(
@@ -378,7 +388,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
                 st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
 
             m_predef = folium.Map(location=st.session_state.map_view["location"], zoom_start=st.session_state.map_view["zoom"])
-            folium.plugins.ScaleControl().add_to(m_predef)
+            ScaleControl().add_to(m_predef)
 
             for _, row in gdf_filtered.iterrows():
                 folium.Marker(
