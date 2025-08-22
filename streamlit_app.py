@@ -501,82 +501,80 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
                 st.warning("No hay datos suficientes para generar el mapa animado.")
 
         # Sub-pestaña: Mapa de Interpolación
-       with tab_interp:
-    st.subheader("Superficie de Precipitación Anual por Kriging")
-    st.markdown("Mapa base con la superficie de lluvia interpolada a partir de la precipitación media anual.")
+        with tab_interp:
+            st.subheader("Superficie de Precipitación Anual por Kriging")
+            st.markdown("Mapa base con la superficie de lluvia interpolada a partir de la precipitación media anual.")
 
-    if not df_precip_anual_filtered_melted.empty:
-        # Calcular la precipitación media anual para cada estación
-        df_mean_precip = df_precip_anual_filtered_melted.groupby('Nom_Est')[['Longitud_geo', 'Latitud_geo', 'Precipitación']].mean().reset_index()
+            if not df_precip_anual_filtered_melted.empty:
+                # Calcular la precipitación media anual para cada estación
+                df_mean_precip = df_precip_anual_filtered_melted.groupby('Nom_Est')[['Longitud_geo', 'Latitud_geo', 'Precipitación']].mean().reset_index()
 
-        # Definir la grilla de interpolación
-        longs = np.unique(df_mean_precip['Longitud_geo'])
-        lats = np.unique(df_mean_precip['Latitud_geo'])
-        lon_grid = np.linspace(min(longs), max(longs), 100)
-        lat_grid = np.linspace(min(lats), max(lats), 100)
+                # Definir la grilla de interpolación
+                longs = np.unique(df_mean_precip['Longitud_geo'])
+                lats = np.unique(df_mean_precip['Latitud_geo'])
+                lon_grid = np.linspace(min(longs), max(longs), 100)
+                lat_grid = np.linspace(min(lats), max(lats), 100)
 
-        # Realizar la interpolación por Kriging
-        try:
-            OK = OrdinaryKriging(
-                df_mean_precip['Longitud_geo'].values,
-                df_mean_precip['Latitud_geo'].values,
-                df_mean_precip['Precipitación'].values,
-                variogram_model='linear',
-                verbose=False,
-                enable_plotting=False
-            )
-            z_grid, ss_grid = OK.execute("grid", lon_grid, lat_grid)
-            z_grid = z_grid.data
-            
-            # --- Corrección: Crear el mapa con la superficie de contorno ---
-            fig_interp = go.Figure(data=go.Contour(
-                x=lon_grid,
-                y=lat_grid,
-                z=z_grid,
-                colorscale='YlGnBu',
-                contours_showlabels=True,
-                line_smoothing=0.85
-            ))
+                # Realizar la interpolación por Kriging
+                try:
+                    OK = OrdinaryKriging(
+                        df_mean_precip['Longitud_geo'].values,
+                        df_mean_precip['Latitud_geo'].values,
+                        df_mean_precip['Precipitación'].values,
+                        variogram_model='linear',
+                        verbose=False,
+                        enable_plotting=False
+                    )
+                    z_grid, ss_grid = OK.execute("grid", lon_grid, lat_grid)
+                    z_grid = z_grid.data
+                    
+                    # --- Corrección: Crear el mapa con la superficie de contorno ---
+                    fig_interp = go.Figure(data=go.Contour(
+                        x=lon_grid,
+                        y=lat_grid,
+                        z=z_grid,
+                        colorscale='YlGnBu',
+                        contours_showlabels=True,
+                        line_smoothing=0.85
+                    ))
 
-            # Añadir las estaciones como puntos sobre el contorno
-            fig_interp.add_trace(go.Scattergeo(
-                lat=df_mean_precip['Latitud_geo'],
-                lon=df_mean_precip['Longitud_geo'],
-                mode='markers',
-                marker=dict(
-                    size=10,
-                    color='black',
-                    symbol='circle',
-                    line=dict(width=1, color='white')
-                ),
-                hoverinfo='text',
-                hovertext=df_mean_precip['Nom_Est'] + '<br>Pptn. Anual: ' + df_mean_precip['Precipitación'].round(2).astype(str),
-                name='Estaciones de Lluvia'
-            ))
+                    # Añadir las estaciones como puntos sobre el contorno
+                    fig_interp.add_trace(go.Scattergeo(
+                        lat=df_mean_precip['Latitud_geo'],
+                        lon=df_mean_precip['Longitud_geo'],
+                        mode='markers',
+                        marker=dict(
+                            size=10,
+                            color='black',
+                            symbol='circle',
+                            line=dict(width=1, color='white')
+                        ),
+                        hoverinfo='text',
+                        hovertext=df_mean_precip['Nom_Est'] + '<br>Pptn. Anual: ' + df_mean_precip['Precipitación'].round(2).astype(str),
+                        name='Estaciones de Lluvia'
+                    ))
 
-            # --- CORRECCIÓN CLAVE: Centrar el mapa manualmente ---
-            center_lat = (max(lats) + min(lats)) / 2
-            center_lon = (max(longs) + min(longs)) / 2
+                    # --- CORRECCIÓN CLAVE: Centrar el mapa manualmente ---
+                    center_lat = (max(lats) + min(lats)) / 2
+                    center_lon = (max(longs) + min(longs)) / 2
+                    zoom_factor = 10 # Ajusta este valor si necesitas más o menos zoom
 
-            fig_interp.update_layout(
-                title_text='Superficie de Precipitación Media Anual',
-                geo=dict(
-                    scope='south america',
-                    showland=True,
-                    landcolor='rgb(217, 217, 217)',
-                    countrycolor='rgb(204, 204, 204)',
-                    showcountries=True,
-                    center=dict(lat=center_lat, lon=center_lon),
-                    projection_scale=10 # Ajusta este valor si necesitas más o menos zoom
-                )
-            )
-            st.plotly_chart(fig_interp, use_container_width=True)
-        
-        except Exception as e:
-            st.warning(f"No se pudo generar el mapa de Kriging: {e}. Esto puede suceder si hay muy pocas estaciones seleccionadas o si los datos no son adecuados para la interpolación.")
-
-    else:
-        st.warning("No hay datos suficientes para generar el mapa de interpolación.")
+                    fig_interp.update_layout(
+                        title_text='Superficie de Precipitación Media Anual',
+                        geo=dict(
+                            scope='south america',
+                            showland=True,
+                            landcolor='rgb(217, 217, 217)',
+                            countrycolor='rgb(204, 204, 204)',
+                            showcountries=True,
+                            center=dict(lat=center_lat, lon=center_lon),
+                            projection_scale=zoom_factor
+                        )
+                    )
+                    st.plotly_chart(fig_interp, use_container_width=True)
+                
+                except Exception as e:
+                    st.warning(f"No se pudo generar el mapa de Kriging: {e}. Esto puede suceder si hay muy pocas estaciones seleccionadas o si los datos no son adecuados para la interpolación.")
 
             else:
                 st.warning("No hay datos suficientes para generar el mapa de interpolación.")
