@@ -283,296 +283,299 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     meses_dict = {'Ene': 1, 'Feb': 2, 'Mar': 3, 'Abr': 4, 'May': 5, 'Jun': 6, 'Jul': 7, 'Ago': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dic': 12}
     meses_numeros = [meses_dict[m] for m in meses_seleccionados]
 
-    # --- Sección de Visualizaciones ---
-    st.header("Visualizaciones de Precipitación 💧")
-    
-    # Gráfico de Serie de Tiempo Anual
-    st.subheader("Precipitación Anual Total (mm)")
-    df_precip_anual_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
-    year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
-    df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
-        id_vars=['Nom_Est', 'Nom_Est_clean', 'Latitud_geo', 'Longitud_geo', 'municipio', 'Celda_XY'], 
-        value_vars=year_cols,
-        var_name='Año', 
-        value_name='Precipitación'
-    )
-    df_precip_anual_filtered_melted['Año'] = df_precip_anual_filtered_melted['Año'].astype(int)
-    df_precip_anual_filtered_melted = df_precip_anual_filtered_melted[
-        (df_precip_anual_filtered_melted['Año'] >= year_range[0]) &
-        (df_precip_anual_filtered_melted['Año'] <= year_range[1])
-    ].copy() 
+    # --- Pestañas de la aplicación ---
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 Gráficos de Series de Tiempo", 
+        "🗺️ Mapas", 
+        "📋 Tabla de Estaciones", 
+        "🔍 Análisis ENSO", 
+        "⬇️ Opciones de Descarga"
+    ])
 
-    if not df_precip_anual_filtered_melted.empty:
-        selection_anual = alt.selection_point(fields=['Nom_Est'], bind='legend')
-        chart_anual = alt.Chart(df_precip_anual_filtered_melted).mark_line().encode(
-            x=alt.X('Año:O', title='Año'),
-            y=alt.Y('Precipitación:Q', title='Precipitación Total (mm)'),
-            color='Nom_Est:N',
-            opacity=alt.condition(selection_anual, alt.value(1.0), alt.value(0.2)),
-            tooltip=['Nom_Est', 'Año', 'Precipitación']
-        ).properties(
-            title='Precipitación Anual Total por Estación'
-        ).add_params(selection_anual).interactive()
-        st.altair_chart(chart_anual, use_container_width=True)
-    else:
-        st.warning("No hay datos para las estaciones y el rango de años seleccionados.")
-
-    # Gráfico de Serie de Tiempo Mensual
-    st.subheader("Precipitación Mensual Total (mm)")
-    df_monthly_total = df_long.groupby(['Nom_Est', 'Year', 'Mes'])['Precipitation'].sum().reset_index()
-    df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['Year'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
-    df_monthly_filtered = df_monthly_total[
-        (df_monthly_total['Nom_Est'].isin(filtered_stations)) &
-        (df_monthly_total['Year'] >= year_range[0]) &
-        (df_monthly_total['Year'] <= year_range[1]) &
-        (df_monthly_total['Mes'].isin(meses_numeros))
-    ].copy() 
-
-    if not df_monthly_filtered.empty:
-        selection_mensual = alt.selection_point(fields=['Nom_Est'], bind='legend')
-        chart_mensual = alt.Chart(df_monthly_filtered).mark_line().encode(
-            x=alt.X('Fecha:T', title='Fecha'),
-            y=alt.Y('Precipitation:Q', title='Precipitación Total (mm)'),
-            color='Nom_Est:N',
-            opacity=alt.condition(selection_mensual, alt.value(1.0), alt.value(0.2)),
-            tooltip=[alt.Tooltip('Fecha', format='%Y-%m'), 'Precipitation', 'Nom_Est']
-        ).properties(
-            title='Precipitación Mensual Total por Estación'
-        ).add_params(selection_mensual).interactive()
-        st.altair_chart(chart_mensual, use_container_width=True)
-    else:
-        st.warning("No hay datos mensuales para las estaciones, el rango de años y los meses seleccionados.")
-
-    # --- Sección de Mapas ---
-    st.subheader("Mapa de Estaciones de Lluvia en Colombia")
-    st.markdown("Ubicación de las estaciones seleccionadas.")
-
-    gdf_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
-
-    if not gdf_filtered.empty:
+    # --- Contenido de la Pestaña de Gráficos ---
+    with tab1:
+        st.header("Visualizaciones de Precipitación 💧")
         
-        tab_auto, tab_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
-
-        with tab_auto:
-            st.info("El mapa se centra y ajusta automáticamente a las estaciones seleccionadas.")
-            m_auto = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
-            bounds = gdf_filtered.total_bounds
-            m_auto.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-            ScaleControl().add_to(m_auto)
-
-            for _, row in gdf_filtered.iterrows():
-                folium.Marker(
-                    location=[row['Latitud_geo'], row['Longitud_geo']],
-                    tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
-                    icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
-                ).add_to(m_auto)
-            folium_static(m_auto, width=900, height=600)
-            
-        with tab_predef:
-            st.info("Use los botones para centrar el mapa en ubicaciones predefinidas.")
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("Ver Colombia"):
-                    st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
-            with col2:
-                if st.button("Ver Antioquia"):
-                    st.session_state.map_view = {"location": [6.2442, -75.5812], "zoom": 8}
-            with col3:
-                if st.button("Ver Estaciones Seleccionadas"):
-                    bounds = gdf_filtered.total_bounds
-                    st.session_state.map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8} 
-
-            if 'map_view' not in st.session_state:
-                st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
-
-            m_predef = folium.Map(location=st.session_state.map_view["location"], zoom_start=st.session_state.map_view["zoom"])
-            ScaleControl().add_to(m_predef)
-
-            for _, row in gdf_filtered.iterrows():
-                folium.Marker(
-                    location=[row['Latitud_geo'], row['Longitud_geo']],
-                    tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
-                    icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
-                ).add_to(m_predef)
-            
-            folium_static(m_predef, width=900, height=600)
-
-        st.info("""
-        **Nota sobre la interactividad:** Para los mapas de Folium, la selección por leyenda no es una funcionalidad nativa. Para filtrar las estaciones, por favor use las opciones de selección en el panel lateral.
-        """)
-    else:
-        st.warning("No hay estaciones seleccionadas o datos de coordenadas para mostrar en el mapa.")
-
-    # Mapa Animado (Plotly)
-    st.subheader("Mapa Animado de Precipitación Anual")
-    st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
-    if not df_precip_anual_filtered_melted.empty:
-        
-        tab_anim_auto, tab_anim_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
-        
-        with tab_anim_auto:
-            fig_mapa_animado = px.scatter_geo(
-                df_precip_anual_filtered_melted,
-                lat='Latitud_geo',
-                lon='Longitud_geo',
-                color='Precipitación',
-                size='Precipitación',
-                hover_name='Nom_Est',
-                animation_frame='Año',
-                projection='natural earth',
-                title='Precipitación Anual de las Estaciones',
-                color_continuous_scale=px.colors.sequential.RdBu,
-                width=1000,
-                height=700
-            )
-            fig_mapa_animado.update_geos(fitbounds="locations", showcountries=True, countrycolor="black")
-            st.plotly_chart(fig_mapa_animado, use_container_width=True)
-
-        with tab_anim_predef:
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("Ver Colombia", key="anim_col"):
-                    st.session_state.anim_map_view = {"location": [4.5709, -74.2973], "zoom": 5}
-            with col2:
-                if st.button("Ver Antioquia", key="anim_ant"):
-                    st.session_state.anim_map_view = {"location": [6.2442, -75.5812], "zoom": 8}
-            with col3:
-                if st.button("Ver Estaciones Seleccionadas", key="anim_est"):
-                    bounds = gdf_filtered.total_bounds
-                    st.session_state.anim_map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8}
-            
-            if 'anim_map_view' not in st.session_state:
-                st.session_state.anim_map_view = {"location": [4.5709, -74.2973], "zoom": 5}
-
-            fig_mapa_animado_predef = px.scatter_geo(
-                df_precip_anual_filtered_melted,
-                lat='Latitud_geo',
-                lon='Longitud_geo',
-                color='Precipitación',
-                size='Precipitación',
-                hover_name='Nom_Est',
-                animation_frame='Año',
-                projection='natural earth',
-                title='Precipitación Anual de las Estaciones',
-                color_continuous_scale=px.colors.sequential.RdBu,
-                width=1000,
-                height=700
-            )
-            # Corrección: Uso de la estructura de diccionario para el layout.geo.center y layout.geo.projection.
-            fig_mapa_animado_predef.update_layout(
-                geo = dict(
-                    center = dict(
-                        lat=st.session_state.anim_map_view['location'][0], 
-                        lon=st.session_state.anim_map_view['location'][1]
-                    ),
-                    projection_scale=st.session_state.anim_map_view['zoom'],
-                    showcountries=True, countrycolor="black"
-                )
-            )
-            st.plotly_chart(fig_mapa_animado_predef, use_container_width=True)
-
-    else:
-        st.warning("No hay datos suficientes para generar el mapa animado.")
-
-    # --- Tabla de Información de Estaciones ---
-    st.markdown("---")
-    st.header("📋 Información Detallada de las Estaciones")
-    st.markdown("Esta tabla muestra información relevante para las estaciones seleccionadas, incluyendo la precipitación media anual calculada para el rango de años elegido.")
-
-    df_mean_precip = df_precip_anual_filtered_melted.groupby('Nom_Est')['Precipitación'].mean().reset_index()
-    df_mean_precip.rename(columns={'Precipitación': 'Precipitación media anual (mm)'}, inplace=True)
-    df_mean_precip['Precipitación media anual (mm)'] = df_mean_precip['Precipitación media anual (mm)'].round(2)
-    
-    gdf_info_table = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
-    gdf_info_table = gdf_info_table.merge(df_mean_precip, on='Nom_Est', how='left')
-
-    columns_to_show = [
-        'Nom_Est', 'Porc_datos', 'Celda_XY', 'Cant_Est', 'departamento', 'municipio', 'AHZ', 'SZH', 
-        'Longitud', 'Latitud', 'vereda', 'SUBREGION', 'Precipitación media anual (mm)'
-    ]
-    
-    existing_columns = [col for col in columns_to_show if col in gdf_info_table.columns]
-    df_info_table = gdf_info_table[existing_columns].copy()
-
-    if not df_info_table.empty:
-        st.dataframe(df_info_table)
-    else:
-        st.warning("No hay datos para las estaciones y el rango de años seleccionados. La tabla no se puede mostrar.")
-
-    # --- Análisis ENSO ---
-    st.markdown("---")
-    st.header("Análisis de Precipitación y el Fenómeno ENSO")
-    st.markdown("Esta sección explora la relación entre la precipitación y los eventos de El Niño-Oscilación del Sur.")
-
-    df_analisis = df_long.copy()
-    try:
-        df_analisis['fecha_merge'] = df_analisis['Fecha'].dt.strftime('%Y-%m')
-        df_analisis = pd.merge(df_analisis, df_enso[['fecha_merge', 'Anomalia_ONI', 'ENSO']], on='fecha_merge', how='left')
-        df_analisis = df_analisis.dropna(subset=['ENSO']).copy()
-
-        df_enso_group = df_analisis.groupby('ENSO')['Precipitation'].mean().reset_index()
-        df_enso_group = df_enso_group.rename(columns={'Precipitation': 'Precipitación'})
-
-        fig_enso = px.bar(
-            df_enso_group,
-            x='ENSO',
-            y='Precipitación',
-            title='Precipitación Media por Evento ENSO',
-            labels={'ENSO': 'Evento ENSO', 'Precipitación': 'Precipitación Media (mm)'},
-            color='ENSO'
+        # Gráfico de Serie de Tiempo Anual
+        st.subheader("Precipitación Anual Total (mm)")
+        df_precip_anual_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
+        year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
+        df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
+            id_vars=['Nom_Est', 'Nom_Est_clean', 'Latitud_geo', 'Longitud_geo', 'municipio', 'Celda_XY'], 
+            value_vars=year_cols,
+            var_name='Año', 
+            value_name='Precipitación'
         )
-        st.plotly_chart(fig_enso, use_container_width=True)
+        df_precip_anual_filtered_melted['Año'] = df_precip_anual_filtered_melted['Año'].astype(int)
+        df_precip_anual_filtered_melted = df_precip_anual_filtered_melted[
+            (df_precip_anual_filtered_melted['Año'] >= year_range[0]) &
+            (df_precip_anual_filtered_melted['Año'] <= year_range[1])
+        ].copy() 
 
-        df_corr = df_analisis[['Anomalia_ONI', 'Precipitation']].dropna()
-        if not df_corr.empty:
-            correlation = df_corr['Anomalia_ONI'].corr(df_corr['Precipitation'])
-            st.write(f"### Coeficiente de Correlación entre Anomalía ONI y Precipitación: **{correlation:.2f}**")
-            st.info("""
-            **Interpretación:**
-            - Un valor cercano a 1 indica una correlación positiva fuerte.
-            - Un valor cercano a -1 indica una correlación negativa fuerte.
-            - Un valor cercano a 0 indica una correlación débil o nula.
-            """)
+        if not df_precip_anual_filtered_melted.empty:
+            selection_anual = alt.selection_point(fields=['Nom_Est'], bind='legend')
+            chart_anual = alt.Chart(df_precip_anual_filtered_melted).mark_line().encode(
+                x=alt.X('Año:O', title='Año'),
+                y=alt.Y('Precipitación:Q', title='Precipitación Total (mm)'),
+                color='Nom_Est:N',
+                opacity=alt.condition(selection_anual, alt.value(1.0), alt.value(0.2)),
+                tooltip=['Nom_Est', 'Año', 'Precipitación']
+            ).properties(
+                title='Precipitación Anual Total por Estación'
+            ).add_params(selection_anual).interactive()
+            st.altair_chart(chart_anual, use_container_width=True)
         else:
-            st.warning("No hay suficientes datos para calcular la correlación.")
-    except Exception as e:
-        st.error(f"Error en el análisis ENSO: {e}")
+            st.warning("No hay datos para las estaciones y el rango de años seleccionados.")
 
-    # --- Opciones de Descarga ---
-    st.markdown("---")
-    st.header("Opciones de Descarga 📥")
-    st.markdown("""
-    **Exportar a CSV:**
-    Para obtener los datos filtrados en formato CSV, haga clic en los botones de descarga a continuación.
-    """)
-    
-    st.markdown("**Datos de Precipitación Anual**")
-    csv_anual = df_precip_anual_filtered_melted.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="Descargar datos anuales (CSV)",
-        data=csv_anual,
-        file_name='precipitacion_anual.csv',
-        mime='text/csv',
-    )
-    
-    st.markdown("**Datos de Precipitación Mensual**")
-    csv_mensual = df_monthly_filtered.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="Descargar datos mensuales (CSV)",
-        data=csv_mensual,
-        file_name='precipitacion_mensual.csv',
-        mime='text/csv',
-    )
-    
-    st.markdown("---")
-    st.markdown("""
-    **Exportar a Imagen (PNG/SVG):**
-    Para descargar los **gráficos de Plotly** como imagen, simplemente pase el cursor sobre el gráfico y haga clic en el ícono de la cámara 📷 que aparece en la parte superior derecha. Para los **mapas de Folium**, use una captura de pantalla.
+        # Gráfico de Serie de Tiempo Mensual
+        st.subheader("Precipitación Mensual Total (mm)")
+        df_monthly_total = df_long.groupby(['Nom_Est', 'Year', 'Mes'])['Precipitation'].sum().reset_index()
+        df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['Year'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
+        df_monthly_filtered = df_monthly_total[
+            (df_monthly_total['Nom_Est'].isin(filtered_stations)) &
+            (df_monthly_total['Year'] >= year_range[0]) &
+            (df_monthly_total['Year'] <= year_range[1]) &
+            (df_monthly_total['Mes'].isin(meses_numeros))
+        ].copy() 
 
-    **Exportar a PDF:**
-    Para guardar una copia de toda la página (incluyendo todos los gráficos y tablas visibles) como un archivo PDF, utilice la función de su navegador:
-    1. Vaya al menú del navegador (usualmente en la esquina superior derecha).
-    2. Seleccione **"Imprimir..."**.
-    3. En el destino, elija **"Guardar como PDF"**.
-    """)
+        if not df_monthly_filtered.empty:
+            selection_mensual = alt.selection_point(fields=['Nom_Est'], bind='legend')
+            chart_mensual = alt.Chart(df_monthly_filtered).mark_line().encode(
+                x=alt.X('Fecha:T', title='Fecha'),
+                y=alt.Y('Precipitation:Q', title='Precipitación Total (mm)'),
+                color='Nom_Est:N',
+                opacity=alt.condition(selection_mensual, alt.value(1.0), alt.value(0.2)),
+                tooltip=[alt.Tooltip('Fecha', format='%Y-%m'), 'Precipitation', 'Nom_Est']
+            ).properties(
+                title='Precipitación Mensual Total por Estación'
+            ).add_params(selection_mensual).interactive()
+            st.altair_chart(chart_mensual, use_container_width=True)
+        else:
+            st.warning("No hay datos mensuales para las estaciones, el rango de años y los meses seleccionados.")
+
+    # --- Contenido de la Pestaña de Mapas ---
+    with tab2:
+        st.header("Mapas de Lluvia y Precipitación")
+        
+        st.subheader("Mapa de Estaciones de Lluvia en Colombia")
+        st.markdown("Ubicación de las estaciones seleccionadas.")
+
+        gdf_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
+
+        if not gdf_filtered.empty:
+            tab_auto, tab_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
+
+            with tab_auto:
+                st.info("El mapa se centra y ajusta automáticamente a las estaciones seleccionadas.")
+                m_auto = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
+                bounds = gdf_filtered.total_bounds
+                m_auto.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+                ScaleControl().add_to(m_auto)
+
+                for _, row in gdf_filtered.iterrows():
+                    folium.Marker(
+                        location=[row['Latitud_geo'], row['Longitud_geo']],
+                        tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
+                        icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
+                    ).add_to(m_auto)
+                folium_static(m_auto, width=900, height=600)
+                
+            with tab_predef:
+                st.info("Use los botones para centrar el mapa en ubicaciones predefinidas.")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("Ver Colombia"):
+                        st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+                with col2:
+                    if st.button("Ver Antioquia"):
+                        st.session_state.map_view = {"location": [6.2442, -75.5812], "zoom": 8}
+                with col3:
+                    if st.button("Ver Estaciones Seleccionadas"):
+                        bounds = gdf_filtered.total_bounds
+                        st.session_state.map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8} 
+
+                if 'map_view' not in st.session_state:
+                    st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+
+                m_predef = folium.Map(location=st.session_state.map_view["location"], zoom_start=st.session_state.map_view["zoom"])
+                ScaleControl().add_to(m_predef)
+
+                for _, row in gdf_filtered.iterrows():
+                    folium.Marker(
+                        location=[row['Latitud_geo'], row['Longitud_geo']],
+                        tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
+                        icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
+                    ).add_to(m_predef)
+                folium_static(m_predef, width=900, height=600)
+        else:
+            st.warning("No hay estaciones seleccionadas o datos de coordenadas para mostrar en el mapa.")
+
+        st.markdown("---")
+        st.subheader("Mapa Animado de Precipitación Anual")
+        st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
+        if not df_precip_anual_filtered_melted.empty:
+            tab_anim_auto, tab_anim_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
+            
+            with tab_anim_auto:
+                fig_mapa_animado = px.scatter_geo(
+                    df_precip_anual_filtered_melted,
+                    lat='Latitud_geo',
+                    lon='Longitud_geo',
+                    color='Precipitación',
+                    size='Precipitación',
+                    hover_name='Nom_Est',
+                    animation_frame='Año',
+                    projection='natural earth',
+                    title='Precipitación Anual de las Estaciones',
+                    color_continuous_scale=px.colors.sequential.RdBu,
+                    width=1000,
+                    height=700
+                )
+                fig_mapa_animado.update_geos(fitbounds="locations", showcountries=True, countrycolor="black")
+                st.plotly_chart(fig_mapa_animado, use_container_width=True)
+
+            with tab_anim_predef:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("Ver Colombia", key="anim_col"):
+                        st.session_state.anim_map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+                with col2:
+                    if st.button("Ver Antioquia", key="anim_ant"):
+                        st.session_state.anim_map_view = {"location": [6.2442, -75.5812], "zoom": 8}
+                with col3:
+                    if st.button("Ver Estaciones Seleccionadas", key="anim_est"):
+                        bounds = gdf_filtered.total_bounds
+                        st.session_state.anim_map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8}
+                
+                if 'anim_map_view' not in st.session_state:
+                    st.session_state.anim_map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+
+                fig_mapa_animado_predef = px.scatter_geo(
+                    df_precip_anual_filtered_melted,
+                    lat='Latitud_geo',
+                    lon='Longitud_geo',
+                    color='Precipitación',
+                    size='Precipitación',
+                    hover_name='Nom_Est',
+                    animation_frame='Año',
+                    projection='natural earth',
+                    title='Precipitación Anual de las Estaciones',
+                    color_continuous_scale=px.colors.sequential.RdBu,
+                    width=1000,
+                    height=700
+                )
+                fig_mapa_animado_predef.update_layout(
+                    geo = dict(
+                        center = dict(
+                            lat=st.session_state.anim_map_view['location'][0], 
+                            lon=st.session_state.anim_map_view['location'][1]
+                        ),
+                        projection_scale=st.session_state.anim_map_view['zoom'],
+                        showcountries=True, countrycolor="black"
+                    )
+                )
+                st.plotly_chart(fig_mapa_animado_predef, use_container_width=True)
+        else:
+            st.warning("No hay datos suficientes para generar el mapa animado.")
+
+    # --- Contenido de la Pestaña de Tablas ---
+    with tab3:
+        st.header("📋 Información Detallada de las Estaciones")
+        st.markdown("Esta tabla muestra información relevante para las estaciones seleccionadas, incluyendo la precipitación media anual calculada para el rango de años elegido.")
+
+        df_mean_precip = df_precip_anual_filtered_melted.groupby('Nom_Est')['Precipitación'].mean().reset_index()
+        df_mean_precip.rename(columns={'Precipitación': 'Precipitación media anual (mm)'}, inplace=True)
+        df_mean_precip['Precipitación media anual (mm)'] = df_mean_precip['Precipitación media anual (mm)'].round(2)
+        
+        gdf_info_table = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
+        gdf_info_table = gdf_info_table.merge(df_mean_precip, on='Nom_Est', how='left')
+
+        columns_to_show = [
+            'Nom_Est', 'Porc_datos', 'Celda_XY', 'Cant_Est', 'departamento', 'municipio', 'AHZ', 'SZH', 
+            'Longitud', 'Latitud', 'vereda', 'SUBREGION', 'Precipitación media anual (mm)'
+        ]
+        
+        existing_columns = [col for col in columns_to_show if col in gdf_info_table.columns]
+        df_info_table = gdf_info_table[existing_columns].copy()
+
+        if not df_info_table.empty:
+            st.dataframe(df_info_table)
+        else:
+            st.warning("No hay datos para las estaciones y el rango de años seleccionados. La tabla no se puede mostrar.")
+
+    # --- Contenido de la Pestaña de Análisis ENSO ---
+    with tab4:
+        st.header("Análisis de Precipitación y el Fenómeno ENSO")
+        st.markdown("Esta sección explora la relación entre la precipitación y los eventos de El Niño-Oscilación del Sur.")
+
+        df_analisis = df_long.copy()
+        try:
+            df_analisis['fecha_merge'] = df_analisis['Fecha'].dt.strftime('%Y-%m')
+            df_analisis = pd.merge(df_analisis, df_enso[['fecha_merge', 'Anomalia_ONI', 'ENSO']], on='fecha_merge', how='left')
+            df_analisis = df_analisis.dropna(subset=['ENSO']).copy()
+
+            df_enso_group = df_analisis.groupby('ENSO')['Precipitation'].mean().reset_index()
+            df_enso_group = df_enso_group.rename(columns={'Precipitation': 'Precipitación'})
+
+            fig_enso = px.bar(
+                df_enso_group,
+                x='ENSO',
+                y='Precipitación',
+                title='Precipitación Media por Evento ENSO',
+                labels={'ENSO': 'Evento ENSO', 'Precipitación': 'Precipitación Media (mm)'},
+                color='ENSO'
+            )
+            st.plotly_chart(fig_enso, use_container_width=True)
+
+            df_corr = df_analisis[['Anomalia_ONI', 'Precipitation']].dropna()
+            if not df_corr.empty:
+                correlation = df_corr['Anomalia_ONI'].corr(df_corr['Precipitation'])
+                st.write(f"### Coeficiente de Correlación entre Anomalía ONI y Precipitación: **{correlation:.2f}**")
+                st.info("""
+                **Interpretación:**
+                - Un valor cercano a 1 indica una correlación positiva fuerte.
+                - Un valor cercano a -1 indica una correlación negativa fuerte.
+                - Un valor cercano a 0 indica una correlación débil o nula.
+                """)
+            else:
+                st.warning("No hay suficientes datos para calcular la correlación.")
+        except Exception as e:
+            st.error(f"Error en el análisis ENSO: {e}")
+
+    # --- Contenido de la Pestaña de Descarga ---
+    with tab5:
+        st.header("Opciones de Descarga 📥")
+        st.markdown("""
+        **Exportar a CSV:**
+        Para obtener los datos filtrados en formato CSV, haga clic en los botones de descarga a continuación.
+        """)
+        
+        st.markdown("**Datos de Precipitación Anual**")
+        csv_anual = df_precip_anual_filtered_melted.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Descargar datos anuales (CSV)",
+            data=csv_anual,
+            file_name='precipitacion_anual.csv',
+            mime='text/csv',
+        )
+        
+        st.markdown("**Datos de Precipitación Mensual**")
+        csv_mensual = df_monthly_filtered.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Descargar datos mensuales (CSV)",
+            data=csv_mensual,
+            file_name='precipitacion_mensual.csv',
+            mime='text/csv',
+        )
+        
+        st.markdown("---")
+        st.markdown("""
+        **Exportar a Imagen (PNG/SVG):**
+        Para descargar los **gráficos de Plotly** como imagen, simplemente pase el cursor sobre el gráfico y haga clic en el ícono de la cámara 📷 que aparece en la parte superior derecha. Para los **mapas de Folium**, use una captura de pantalla.
+
+        **Exportar a PDF:**
+        Para guardar una copia de toda la página (incluyendo todos los gráficos y tablas visibles) como un archivo PDF, utilice la función de su navegador:
+        1. Vaya al menú del navegador (usualmente en la esquina superior derecha).
+        2. Seleccione **"Imprimir..."**.
+        3. En el destino, elija **"Guardar como PDF"**.
+        """)
