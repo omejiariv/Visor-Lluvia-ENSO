@@ -145,7 +145,8 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.stop()
         
     # --- Mapeo de estaciones ---
-    station_mapping = df_precip_anual[['Id_estacion', 'Nom_Est']].set_index('Id_estacion').to_dict()['Nom_Est']
+    # Se corrige el nombre de la columna 'Id_estacion' a 'Id_estacio'
+    station_mapping = df_precip_anual[['Id_estacio', 'Nom_Est']].set_index('Id_estacio').to_dict()['Nom_Est']
     df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
 
     # --- Controles en la barra lateral ---
@@ -186,7 +187,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # Gráfico de Serie de Tiempo Anual
     st.subheader("Precipitación Anual Total (mm)")
     df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est'].isin(filtered_stations)].copy()
-    df_precip_anual_filtered = df_precip_anual_filtered.loc[:, df_precip_anual_filtered.columns.astype(str).str.contains('^Id_estacion|Nom_Est|\\d{4}$')]
+    df_precip_anual_filtered = df_precip_anual_filtered.loc[:, df_precip_anual_filtered.columns.astype(str).str.contains('^Id_estacio|Nom_Est|\\d{4}$')]
     df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
         id_vars=['Nom_Est'], 
         var_name='Año', 
