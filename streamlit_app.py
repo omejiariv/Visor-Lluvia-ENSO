@@ -141,10 +141,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # --- Preprocesamiento de datos de precipitación anual (mapa) ---
     try:
         df_precip_anual.columns = df_precip_anual.columns.str.strip()
-        # Limpiar la columna 'Nom_Est' para la unión
-        if 'Nom_Est' in df_precip_anual.columns:
-            df_precip_anual['Nom_Est'] = df_precip_anual['Nom_Est'].astype(str).str.strip()
-        
+
         # Convertir Longitud y Latitud a tipo numérico
         for col in ['Longitud', 'Latitud']:
             if col in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual[col]):
@@ -185,20 +182,26 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.stop()
 
     # --- Mapeo y Fusión de Estaciones ---
-    # Unir la información de las estaciones a los datos mensuales
-    # Utilizar 'Id_estacio' del archivo mapa y 'Id_estacion' del archivo de precipitación
-    station_mapping = df_precip_anual.set_index('Id_estacio')['Nom_Est'].to_dict()
-    df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
-    df_long = df_long.dropna(subset=['Nom_Est'])
-    
+    # Limpiar y estandarizar la columna de nombre de estación para la unión
+    df_precip_anual['Nom_Est_clean'] = df_precip_anual['Nom_Est'].astype(str).str.strip().str.upper()
+    gdf['Nom_Est_clean'] = gdf['Nom_Est'].astype(str).str.strip().str.upper()
+
     # Fusionar el GeoDataFrame con los datos de las estaciones del CSV
-    gdf['Nom_Est'] = gdf['Nom_Est'].astype(str).str.strip()
-    gdf = gdf.merge(df_precip_anual[['Nom_Est', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est', how='inner')
+    gdf = gdf.merge(df_precip_anual[['Nom_Est_clean', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est_clean', how='inner')
 
     if gdf.empty:
         st.warning("La fusión de datos de estaciones y coordenadas fracasó. Los nombres de las estaciones en el archivo .csv y el .zip podrían no coincidir.")
         st.stop()
     
+    # Unir la información de las estaciones a los datos mensuales usando los IDs correctos
+    station_mapping = df_precip_anual.set_index('Id_estacio')['Nom_Est'].to_dict()
+    df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
+    df_long = df_long.dropna(subset=['Nom_Est'])
+
+    if df_long.empty:
+        st.warning("La fusión de datos mensuales y de estaciones fracasó. Los IDs de las estaciones no coinciden entre los archivos.")
+        st.stop()
+
     # --- Controles en la barra lateral ---
     staciones_list = sorted(df_precip_anual['Nom_Est'].unique())
     selected_stations = st.sidebar.multiselect(
@@ -294,7 +297,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.subheader("Mapa de Estaciones de Lluvia en Colombia")
     st.markdown("Ubicación de las estaciones seleccionadas.")
 
-    gdf_filtered = gdf[gdf['Nom_Est'].isin(filtered_stations)].copy()
+    gdf_filtered = gdf[gdf['Nom_Est_clean'].isin(df_precip_anual_filtered['Nom_Est_clean'])].copy()
 
     if not gdf_filtered.empty:
         m = folium.Map(location=[gdf_filtered['Latitud'].mean(), gdf_filtered['Longitud'].mean()], zoom_start=6)
@@ -315,7 +318,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
     if not df_precip_anual_filtered_melted.empty and not gdf_filtered.empty:
         fig_mapa_animado = px.scatter_geo(
-            df_precip_anual_filtered_melted.merge(gdf_filtered, on='Nom_Est', how='inner'),
+            df_precip_anual_filtered_melted.merge(gdf_filtered, on='Nom_Est_clean', how='inner'),
             lat='Latitud',
             lon='Longitud',
             color='Precipitación',
