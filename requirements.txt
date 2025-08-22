@@ -12,3 +12,11 @@ Shapely
 rtree
 matplotlib
 statsmodels
+plotly.express
+plotly.graph_objects
+zipfile
+tempfile
+os
+io
+numpy
+re
