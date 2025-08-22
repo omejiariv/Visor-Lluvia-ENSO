@@ -182,7 +182,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.stop()
 
     # --- Mapeo y Fusión de Estaciones ---
-    # Limpiar y estandarizar la columna de nombre de estación para la unión
+    # Limpiar y estandarizar la columna de nombre de estación para la unión con el mapa
     df_precip_anual['Nom_Est_clean'] = df_precip_anual['Nom_Est'].astype(str).str.strip().str.upper()
     gdf['Nom_Est_clean'] = gdf['Nom_Est'].astype(str).str.strip().str.upper()
 
@@ -194,6 +194,10 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.stop()
     
     # Unir la información de las estaciones a los datos mensuales usando los IDs correctos
+    # Limpiar los IDs para asegurar la coincidencia
+    df_precip_anual['Id_estacio'] = df_precip_anual['Id_estacio'].astype(str).str.strip()
+    df_long['Id_estacion'] = df_long['Id_estacion'].astype(str).str.strip()
+    
     station_mapping = df_precip_anual.set_index('Id_estacio')['Nom_Est'].to_dict()
     df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
     df_long = df_long.dropna(subset=['Nom_Est'])
