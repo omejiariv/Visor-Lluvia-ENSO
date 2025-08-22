@@ -16,6 +16,7 @@ import io
 import numpy as np
 import re
 from datetime import datetime
+from shapely.geometry import Point
 
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", page_icon="☔")
@@ -147,6 +148,16 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         for col in ['Longitud', 'Latitud']:
             if col in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual[col]):
                 df_precip_anual[col] = df_precip_anual[col].str.replace(',', '.', regex=True).astype(float)
+
+        # Transformar las coordenadas planas (EPSG:9377) a geográficas (WGS84)
+        gdf_csv = gpd.GeoDataFrame(
+            df_precip_anual,
+            geometry=gpd.points_from_xy(df_precip_anual['Longitud'], df_precip_anual['Latitud']),
+            crs="EPSG:9377"
+        )
+        gdf_csv = gdf_csv.to_crs("EPSG:4326")
+        df_precip_anual['Longitud_geo'] = gdf_csv.geometry.x
+        df_precip_anual['Latitud_geo'] = gdf_csv.geometry.y
         
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo de estaciones (mapaCVENSO.csv): {e}")
@@ -191,7 +202,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     gdf['Nom_Est_clean'] = gdf['Nom_Est_clean'].apply(lambda x: re.sub(r'[^A-Z0-9]', '', x))
 
     # Fusionar el GeoDataFrame con los datos de las estaciones del CSV
-    gdf = gdf.merge(df_precip_anual[['Nom_Est_clean', 'Nom_Est', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est_clean', how='inner')
+    gdf = gdf.merge(df_precip_anual[['Nom_Est_clean', 'Nom_Est', 'Porc_datos', 'municipio', 'Latitud_geo', 'Longitud_geo']], on='Nom_Est_clean', how='inner')
 
     if gdf.empty:
         st.warning("La fusión de datos de estaciones y coordenadas fracasó. Los nombres de las estaciones en el archivo .csv y el .zip podrían no coincidir.")
@@ -315,11 +326,11 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     gdf_filtered = gdf[gdf['Nom_Est_clean'].isin(filtered_stations_clean)].copy()
 
     if not gdf_filtered.empty:
-        m = folium.Map(location=[gdf_filtered['Latitud'].mean(), gdf_filtered['Longitud'].mean()], zoom_start=6)
+        m = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
 
         for _, row in gdf_filtered.iterrows():
             folium.Marker(
-                location=[row['Latitud'], row['Longitud']],
+                location=[row['Latitud_geo'], row['Longitud_geo']],
                 tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}",
                 icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
             ).add_to(m)
@@ -333,11 +344,11 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
     if not df_precip_anual_filtered_melted.empty and not gdf_filtered.empty:
         # Usamos df_precip_anual_filtered para la unión ya que tiene las coordenadas
-        df_plot = df_precip_anual_filtered_melted.merge(gdf_filtered[['Nom_Est_clean', 'Nom_Est', 'Latitud', 'Longitud']], on='Nom_Est_clean', how='inner')
+        df_plot = df_precip_anual_filtered_melted.merge(gdf_filtered[['Nom_Est_clean', 'Nom_Est', 'Latitud_geo', 'Longitud_geo']], on='Nom_Est_clean', how='inner')
         fig_mapa_animado = px.scatter_geo(
             df_plot,
-            lat='Latitud',
-            lon='Longitud',
+            lat='Latitud_geo',
+            lon='Longitud_geo',
             color='Precipitación',
             size='Precipitación',
             hover_name='Nom_Est',
