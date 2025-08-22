@@ -13,3 +13,6 @@ rtree
 matplotlib
 statsmodels
 pykrige
+plotly>=5.0.0
+scipy
+numpy
