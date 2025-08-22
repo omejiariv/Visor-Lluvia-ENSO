@@ -141,18 +141,15 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     # --- Preprocesamiento de datos de precipitación anual (mapa) ---
     try:
         df_precip_anual.columns = df_precip_anual.columns.str.strip()
-        # Unificar el nombre de la columna de estación a 'Id_estacion'
-        if 'Id_estacio' in df_precip_anual.columns:
-             df_precip_anual = df_precip_anual.rename(columns={'Id_estacio': 'Id_estacion'})
-
+        # Limpiar la columna 'Nom_Est' para la unión
+        if 'Nom_Est' in df_precip_anual.columns:
+            df_precip_anual['Nom_Est'] = df_precip_anual['Nom_Est'].astype(str).str.strip()
+        
         # Convertir Longitud y Latitud a tipo numérico
-        if 'Longitud' in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual['Longitud']):
-            df_precip_anual['Longitud'] = df_precip_anual['Longitud'].str.replace(',', '.', regex=True).astype(float)
-        if 'Latitud' in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual['Latitud']):
-            df_precip_anual['Latitud'] = df_precip_anual['Latitud'].str.replace(',', '.', regex=True).astype(float)
-            
-        # Unir el GeoDataFrame con los datos de las estaciones del CSV
-        gdf = gdf.merge(df_precip_anual[['Nom_Est', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est', how='inner')
+        for col in ['Longitud', 'Latitud']:
+            if col in df_precip_anual.columns and pd.api.types.is_object_dtype(df_precip_anual[col]):
+                df_precip_anual[col] = df_precip_anual[col].str.replace(',', '.', regex=True).astype(float)
+        
     except Exception as e:
         st.error(f"Error en el preprocesamiento del archivo de estaciones (mapaCVENSO.csv): {e}")
         st.stop()
@@ -162,9 +159,12 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
         
         # Identificar columnas de estaciones para melt
-        # Filtrar por columnas que son strings de 8 dígitos numéricos, lo cual parece ser el formato de Id_estacion
         station_cols = [col for col in df_precip_mensual.columns if col.isdigit() and len(col) == 8]
         
+        if not station_cols:
+            st.error("No se encontraron columnas de estación válidas en el archivo de precipitación mensual. Verifique el formato de los IDs.")
+            st.stop()
+            
         df_long = df_precip_mensual.melt(
             id_vars=['Id_Fecha', 'año', 'mes'], 
             value_vars=station_cols,
@@ -184,11 +184,20 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         st.error(f"Error en el preprocesamiento del archivo de precipitación mensual: {e}")
         st.stop()
 
-    # --- Mapeo de estaciones ---
+    # --- Mapeo y Fusión de Estaciones ---
     # Unir la información de las estaciones a los datos mensuales
-    station_mapping = df_precip_anual[['Id_estacion', 'Nom_Est']].set_index('Id_estacion').to_dict()['Nom_Est']
+    # Utilizar 'Id_estacio' del archivo mapa y 'Id_estacion' del archivo de precipitación
+    station_mapping = df_precip_anual.set_index('Id_estacio')['Nom_Est'].to_dict()
     df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
     df_long = df_long.dropna(subset=['Nom_Est'])
+    
+    # Fusionar el GeoDataFrame con los datos de las estaciones del CSV
+    gdf['Nom_Est'] = gdf['Nom_Est'].astype(str).str.strip()
+    gdf = gdf.merge(df_precip_anual[['Nom_Est', 'Porc_datos', 'municipio', 'Latitud', 'Longitud']], on='Nom_Est', how='inner')
+
+    if gdf.empty:
+        st.warning("La fusión de datos de estaciones y coordenadas fracasó. Los nombres de las estaciones en el archivo .csv y el .zip podrían no coincidir.")
+        st.stop()
     
     # --- Controles en la barra lateral ---
     staciones_list = sorted(df_precip_anual['Nom_Est'].unique())
