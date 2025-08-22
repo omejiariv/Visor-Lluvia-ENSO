@@ -19,7 +19,7 @@ from datetime import datetime
 # --- Configuración de la página ---
 st.set_page_config(layout="wide", page_title="Visor de Precipitación y ENSO", page_icon=" ☔ ")
 
-# --- URLs de GitHub para carga automática de datos ---
+# --- URLs de GitHub para carga automática de datos (solo como fallback) ---
 GITHUB_BASE_URL = "https://raw.githubusercontent.com/juancami94/Visor_Lluvia_ENSO/main/"
 SHAPEFILE_URL = "https://github.com/juancami94/Visor_Lluvia_ENSO/raw/main/mapaCV.zip"
 
@@ -90,19 +90,8 @@ def load_shapefile(file_type, file_path):
 
 # --- Función para cargar los datos ---
 @st.cache_data
-def load_all_data(data_source):
-    """Carga y procesa todos los archivos de datos."""
-    df_precip_anual = None
-    df_enso = None
-    df_precip_mensual = None
-    gdf = None
-
-    if data_source == 'GitHub':
-        df_precip_anual = load_data('github', 'mapaCVENSO.csv')
-        df_enso = load_data('github', 'ENSO_1950_2023.csv')
-        df_precip_mensual = load_data('github', 'DatosPptnmes_ENSO.csv')
-        gdf = load_shapefile('github', SHAPEFILE_URL)
-    
+def load_all_data(df_precip_anual, df_enso, df_precip_mensual, gdf):
+    """Retorna los datos cargados."""
     return df_precip_anual, df_enso, df_precip_mensual, gdf
 
 # --- Interfaz de usuario ---
@@ -114,29 +103,32 @@ y su correlación con los eventos climáticos de El Niño-Oscilación del Sur (E
 
 # --- Panel de control (sidebar) ---
 st.sidebar.header("Panel de Control")
-data_source = st.sidebar.radio("Seleccionar fuente de datos", ['GitHub', 'Manual'])
+st.sidebar.markdown("Por favor, suba los archivos requeridos para comenzar.")
 
 # Carga de archivos manual
-if data_source == 'Manual':
-    uploaded_file_mapa = st.sidebar.file_uploader("Cargar archivo de estaciones (mapaCVENSO.csv)", type="csv")
-    uploaded_file_enso = st.sidebar.file_uploader("Cargar archivo de ENSO (ENSO_1950_2023.csv)", type="csv")
-    uploaded_file_precip = st.sidebar.file_uploader("Cargar archivo de precipitación mensual (DatosPptnmes_ENSO.csv)", type="csv")
-    uploaded_zip_shapefile = st.sidebar.file_uploader("Cargar shapefile (.zip)", type="zip")
-    
-    if uploaded_file_mapa and uploaded_file_enso and uploaded_file_precip and uploaded_zip_shapefile:
-        df_precip_anual = load_data('local', uploaded_file_mapa)
-        df_enso = load_data('local', uploaded_file_enso)
-        df_precip_mensual = load_data('local', uploaded_file_precip)
-        gdf = load_shapefile('local', uploaded_zip_shapefile)
-    else:
-        st.info("Por favor, suba todos los archivos para habilitar la aplicación.")
-        st.stop()
+uploaded_file_mapa = st.sidebar.file_uploader("1. Cargar archivo de estaciones (mapaCVENSO.csv)", type="csv")
+uploaded_file_enso = st.sidebar.file_uploader("2. Cargar archivo de ENSO (ENSO_1950_2023.csv)", type="csv")
+uploaded_file_precip = st.sidebar.file_uploader("3. Cargar archivo de precipitación mensual (DatosPptnmes_ENSO.csv)", type="csv")
+uploaded_zip_shapefile = st.sidebar.file_uploader("4. Cargar shapefile (.zip)", type="zip")
+
+# Proceso de carga de datos
+df_precip_anual = None
+df_enso = None
+df_precip_mensual = None
+gdf = None
+
+if uploaded_file_mapa and uploaded_file_enso and uploaded_file_precip and uploaded_zip_shapefile:
+    df_precip_anual = load_data('local', uploaded_file_mapa)
+    df_enso = load_data('local', uploaded_file_enso)
+    df_precip_mensual = load_data('local', uploaded_file_precip)
+    gdf = load_shapefile('local', uploaded_zip_shapefile)
 else:
-    df_precip_anual, df_enso, df_precip_mensual, gdf = load_all_data(data_source)
+    st.info("Por favor, suba los 4 archivos para habilitar la aplicación.")
+    st.stop()
 
 # Verificación de carga de datos
 if df_precip_anual is None or df_enso is None or df_precip_mensual is None or gdf is None:
-    st.error("No se pudieron cargar los datos. Por favor, revise su conexión o los archivos subidos.")
+    st.error("No se pudieron cargar los datos. Por favor, revise si los archivos son correctos.")
     st.stop()
 
 # --- Preprocesamiento de datos de precipitación mensual ---
@@ -145,11 +137,11 @@ try:
     df_precip_mensual = df_precip_mensual.rename(columns={'Id_Fecha': 'Fecha'})
     
     df_precip_mensual['Fecha'] = pd.to_datetime(df_precip_mensual['Fecha'], format='%d/%m/%Y')
-    df_precip_mensual['Año'] = df_precip_mensual['Fecha'].dt.año
+    df_precip_mensual['Year'] = df_precip_mensual['Fecha'].dt.year
     df_precip_mensual['Mes'] = df_precip_mensual['Fecha'].dt.month
     
     # Derretir el dataframe para tener un formato largo
-    df_long = df_precip_mensual.melt(id_vars=['Fecha', 'Año', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
+    df_long = df_precip_mensual.melt(id_vars=['Fecha', 'Year', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
     
     # Eliminar filas con valores 'n.d' y convertir la columna de precipitación a float
     df_long['Precipitation'] = df_long['Precipitation'].replace('n.d', np.nan).astype(float)
@@ -161,9 +153,9 @@ except Exception as e:
 
 # --- Preprocesamiento de datos ENSO ---
 try:
-    df_enso['Año'] = df_enso['Año'].astype(int)
+    df_enso['Year'] = df_enso['Year'].astype(int)
     # Crear una columna de fecha para la fusión
-    df_enso['fecha_merge'] = pd.to_datetime(df_enso['Año'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
+    df_enso['fecha_merge'] = pd.to_datetime(df_enso['Year'].astype(str) + '-' + df_enso['mes'], format='%Y-%b')
 
 except Exception as e:
     st.error(f"Error en el preprocesamiento del archivo ENSO: {e}")
@@ -183,7 +175,7 @@ selected_stations = st.sidebar.multiselect(
 
 # Filtro de años
 años_disponibles = sorted(df_precip_anual.columns[2:54].astype(int).tolist())
-Año_range = st.sidebar.slider(
+year_range = st.sidebar.slider(
     "Seleccione el rango de años",
     min_value=min(años_disponibles),
     max_value=max(años_disponibles),
@@ -221,8 +213,8 @@ df_precip_anual_filtered_melted['Año'] = df_precip_anual_filtered_melted['Año'
 
 # Filtrar por el rango de años
 df_precip_anual_filtered_melted = df_precip_anual_filtered_melted[
-    (df_precip_anual_filtered_melted['Año'] >= Año_range[0]) &
-    (df_precip_anual_filtered_melted['Año'] <= Año_range[1])
+    (df_precip_anual_filtered_melted['Año'] >= year_range[0]) &
+    (df_precip_anual_filtered_melted['Año'] <= year_range[1])
 ]
 
 if not df_precip_anual_filtered_melted.empty:
@@ -241,14 +233,14 @@ else:
 # Gráfico de Serie de Tiempo Mensual
 st.subheader("Precipitación Mensual Total (mm)")
 # Agrupar los datos mensuales por año, mes y estación
-df_monthly_total = df_long.groupby(['Nom_Est', 'Año', 'Mes'])['Precipitation'].sum().reset_index()
-df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['Año'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
+df_monthly_total = df_long.groupby(['Nom_Est', 'Year', 'Mes'])['Precipitation'].sum().reset_index()
+df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['Year'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
 
 # Filtrar por estaciones y años
 df_monthly_filtered = df_monthly_total[
     (df_monthly_total['Nom_Est'].isin(filtered_stations)) &
-    (df_monthly_total['Año'] >= Año_range[0]) &
-    (df_monthly_total['Año'] <= Año_range[1])
+    (df_monthly_total['Year'] >= year_range[0]) &
+    (df_monthly_total['Year'] <= year_range[1])
 ]
 
 if not df_monthly_filtered.empty:
