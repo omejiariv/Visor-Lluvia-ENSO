@@ -136,12 +136,12 @@ try:
     df_precip_mensual.columns = df_precip_mensual.columns.str.strip()
     df_precip_mensual = df_precip_mensual.rename(columns={'Id_Fecha': 'Fecha'})
     
-    df_precip_mensual['Fecha'] = pd.to_datetime(df_precip_mensual['Fecha'], format='%d/%m/%Y')
-    df_precip_mensual['año'] = df_precip_mensual['Fecha'].dt.año
-    df_precip_mensual['Mes'] = df_precip_mensual['Fecha'].dt.month
+    df_precip_mensual['Id_Fecha'] = pd.to_datetime(df_precip_mensual['Id_Fecha'], format='%d/%m/%Y')
+    df_precip_mensual['año'] = df_precip_mensual['Id_Fecha'].dt.año
+    df_precip_mensual['Mes'] = df_precip_mensual['Id_Fecha'].dt.month
     
     # Derretir el dataframe para tener un formato largo
-    df_long = df_precip_mensual.melt(id_vars=['Fecha', 'año', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
+    df_long = df_precip_mensual.melt(id_vars=['Id_Fecha', 'año', 'Mes'], var_name='Id_estacion', value_name='Precipitation')
     
     # Eliminar filas con valores 'n.d' y convertir la columna de precipitación a float
     df_long['Precipitation'] = df_long['Precipitation'].replace('n.d', np.nan).astype(float)
@@ -233,8 +233,8 @@ else:
 # Gráfico de Serie de Tiempo Mensual
 st.subheader("Precipitación Mensual Total (mm)")
 # Agrupar los datos mensuales por año, mes y estación
-df_monthly_total = df_long.groupby(['Nom_Est', 'año', 'Mes'])['Precipitation'].sum().reset_index()
-df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['año'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
+df_monthly_total = df_long.groupby(['Nom_Est', 'año', 'mes'])['Precipitation'].sum().reset_index()
+df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['año'].astype(str) + '-' + df_monthly_total['mes'].astype(str), format='%Y-%m')
 
 # Filtrar por estaciones y años
 df_monthly_filtered = df_monthly_total[
