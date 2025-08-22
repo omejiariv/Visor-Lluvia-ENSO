@@ -14,6 +14,7 @@ import tempfile
 import os
 import io
 import numpy as np
+import re
 from datetime import datetime
 
 # --- Configuración de la página ---
@@ -51,7 +52,7 @@ def load_data(file_path, sep=';'):
         except UnicodeDecodeError:
             continue  # Si falla, intenta con la siguiente codificación
         except Exception as e:
-            st.error(f"Ocurrió un error al cargar los datos: {e}")
+        st.error(f"Ocurrió un error al cargar los datos: {e}")
             return None
     
     st.error("No se pudo decodificar el archivo con ninguna de las codificaciones probadas (utf-8, latin1, cp1252, iso-8859-1). Por favor, verifique la codificación del archivo.")
@@ -183,7 +184,10 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # --- Mapeo y Fusión de Estaciones ---
     # Limpiar y estandarizar la columna de nombre de estación para la unión con el mapa
-    df_precip_anual['Nom_Est_clean'] = df_precip_anual['Nom_Est'].astype(str).str.strip().str.upper()
+    # Uso de regex para eliminar el ID entre corchetes
+    df_precip_anual['Nom_Est_clean'] = df_precip_anual['Nom_Est'].astype(str).str.strip()
+    df_precip_anual['Nom_Est_clean'] = df_precip_anual['Nom_Est_clean'].apply(lambda x: re.sub(r'\[\d+\]', '', x)).str.strip().str.upper()
+
     gdf['Nom_Est_clean'] = gdf['Nom_Est'].astype(str).str.strip().str.upper()
 
     # Fusionar el GeoDataFrame con los datos de las estaciones del CSV
@@ -198,16 +202,16 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     df_precip_anual['Id_estacio'] = df_precip_anual['Id_estacio'].astype(str).str.strip()
     df_long['Id_estacion'] = df_long['Id_estacion'].astype(str).str.strip()
     
-    station_mapping = df_precip_anual.set_index('Id_estacio')['Nom_Est'].to_dict()
-    df_long['Nom_Est'] = df_long['Id_estacion'].map(station_mapping)
-    df_long = df_long.dropna(subset=['Nom_Est'])
+    station_mapping = df_precip_anual.set_index('Id_estacio')['Nom_Est_clean'].to_dict()
+    df_long['Nom_Est_clean'] = df_long['Id_estacion'].map(station_mapping)
+    df_long = df_long.dropna(subset=['Nom_Est_clean'])
 
     if df_long.empty:
         st.warning("La fusión de datos mensuales y de estaciones fracasó. Los IDs de las estaciones no coinciden entre los archivos.")
         st.stop()
 
     # --- Controles en la barra lateral ---
-    staciones_list = sorted(df_precip_anual['Nom_Est'].unique())
+    staciones_list = sorted(df_precip_anual['Nom_Est_clean'].unique())
     selected_stations = st.sidebar.multiselect(
         'Seleccione una o varias estaciones', 
         options=staciones_list,
@@ -215,7 +219,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     )
 
     # Filtro de años
-    años_disponibles = sorted([int(col) for col in df_precip_anual.columns if str(col).isdigit()])
+    años_disponibles = sorted([int(col) for col in df_precip_anual.columns if str(col).isdigit() and len(str(col)) == 4])
     year_range = st.sidebar.slider(
         "Seleccione el rango de años",
         min_value=min(años_disponibles),
@@ -233,7 +237,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # Aplicar filtros
     if selected_municipios:
-        filtered_stations_by_municipio = df_precip_anual[df_precip_anual['municipio'].isin(selected_municipios)]['Nom_Est'].tolist()
+        filtered_stations_by_municipio = df_precip_anual[df_precip_anual['municipio'].isin(selected_municipios)]['Nom_Est_clean'].tolist()
         filtered_stations = [s for s in selected_stations if s in filtered_stations_by_municipio]
     else:
         filtered_stations = selected_stations
@@ -243,12 +247,12 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     
     # Gráfico de Serie de Tiempo Anual
     st.subheader("Precipitación Anual Total (mm)")
-    df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est'].isin(filtered_stations)].copy()
+    df_precip_anual_filtered = df_precip_anual[df_precip_anual['Nom_Est_clean'].isin(filtered_stations)].copy()
     
     year_cols = [col for col in df_precip_anual_filtered.columns if str(col).isdigit() and len(str(col)) == 4]
     
     df_precip_anual_filtered_melted = df_precip_anual_filtered.melt(
-        id_vars=['Nom_Est'], 
+        id_vars=['Nom_Est_clean'], 
         value_vars=year_cols,
         var_name='Año', 
         value_name='Precipitación'
@@ -264,8 +268,8 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         chart_anual = alt.Chart(df_precip_anual_filtered_melted).mark_line().encode(
             x=alt.X('Año:O', title='Año'),
             y=alt.Y('Precipitación:Q', title='Precipitación Total (mm)'),
-            color='Nom_Est:N',
-            tooltip=['Nom_Est', 'Año', 'Precipitación']
+            color='Nom_Est_clean:N',
+            tooltip=['Nom_Est_clean', 'Año', 'Precipitación']
         ).properties(
             title='Precipitación Anual Total por Estación'
         ).interactive()
@@ -275,11 +279,11 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
 
     # Gráfico de Serie de Tiempo Mensual
     st.subheader("Precipitación Mensual Total (mm)")
-    df_monthly_total = df_long.groupby(['Nom_Est', 'Year', 'Mes'])['Precipitation'].sum().reset_index()
+    df_monthly_total = df_long.groupby(['Nom_Est_clean', 'Year', 'Mes'])['Precipitation'].sum().reset_index()
     df_monthly_total['Fecha'] = pd.to_datetime(df_monthly_total['Year'].astype(str) + '-' + df_monthly_total['Mes'].astype(str), format='%Y-%m')
 
     df_monthly_filtered = df_monthly_total[
-        (df_monthly_total['Nom_Est'].isin(filtered_stations)) &
+        (df_monthly_total['Nom_Est_clean'].isin(filtered_stations)) &
         (df_monthly_total['Year'] >= year_range[0]) &
         (df_monthly_total['Year'] <= year_range[1])
     ]
@@ -288,8 +292,8 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
         chart_mensual = alt.Chart(df_monthly_filtered).mark_line().encode(
             x=alt.X('Fecha:T', title='Fecha'),
             y=alt.Y('Precipitation:Q', title='Precipitación Total (mm)'),
-            color='Nom_Est:N',
-            tooltip=[alt.Tooltip('Fecha', format='%Y-%m'), 'Precipitation', 'Nom_Est']
+            color='Nom_Est_clean:N',
+            tooltip=[alt.Tooltip('Fecha', format='%Y-%m'), 'Precipitation', 'Nom_Est_clean']
         ).properties(
             title='Precipitación Mensual Total por Estación'
         ).interactive()
@@ -301,7 +305,7 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.subheader("Mapa de Estaciones de Lluvia en Colombia")
     st.markdown("Ubicación de las estaciones seleccionadas.")
 
-    gdf_filtered = gdf[gdf['Nom_Est_clean'].isin(df_precip_anual_filtered['Nom_Est_clean'])].copy()
+    gdf_filtered = gdf[gdf['Nom_Est_clean'].isin(filtered_stations)].copy()
 
     if not gdf_filtered.empty:
         m = folium.Map(location=[gdf_filtered['Latitud'].mean(), gdf_filtered['Longitud'].mean()], zoom_start=6)
@@ -321,13 +325,15 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     st.subheader("Mapa Animado de Precipitación Anual")
     st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
     if not df_precip_anual_filtered_melted.empty and not gdf_filtered.empty:
+        # Usamos df_precip_anual_filtered para la unión ya que tiene las coordenadas
+        df_plot = df_precip_anual_filtered_melted.merge(gdf_filtered[['Nom_Est_clean', 'Latitud', 'Longitud']], on='Nom_Est_clean', how='inner')
         fig_mapa_animado = px.scatter_geo(
-            df_precip_anual_filtered_melted.merge(gdf_filtered, on='Nom_Est_clean', how='inner'),
+            df_plot,
             lat='Latitud',
             lon='Longitud',
             color='Precipitación',
             size='Precipitación',
-            hover_name='Nom_Est',
+            hover_name='Nom_Est_clean',
             animation_frame='Año',
             projection='natural earth',
             title='Precipitación Anual de las Estaciones',
