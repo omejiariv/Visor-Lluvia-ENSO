@@ -2,7 +2,7 @@ streamlit
 pandas
 altair
 folium
-plotly>=5.0.0
+plotly==5.22.0
 geopandas
 pykrige
 scipy
