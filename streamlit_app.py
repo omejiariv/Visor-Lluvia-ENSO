@@ -621,4 +621,63 @@ with tab4:
 
         fig_enso = px.bar(
             df_enso_group,
-            x='
+            x='ENSO',
+            y='Precipitación',
+            title='Precipitación Media por Evento ENSO',
+            labels={'ENSO': 'Evento ENSO', 'Precipitación': 'Precipitación Media (mm)'},
+            color='ENSO'
+        )
+        st.plotly_chart(fig_enso, use_container_width=True)
+
+        df_corr = df_analisis[['Anomalia_ONI', 'Precipitation']].dropna()
+        if not df_corr.empty:
+            correlation = df_corr['Anomalia_ONI'].corr(df_corr['Precipitation'])
+            st.write(f"### Coeficiente de Correlación entre Anomalía ONI y Precipitación: **{correlation:.2f}**")
+            st.info("""
+            **Interpretación:**
+            - Un valor cercano a 1 indica una correlación positiva fuerte.
+            - Un valor cercano a -1 indica una correlación negativa fuerte.
+            - Un valor cercano a 0 indica una correlación débil o nula.
+            """)
+        else:
+            st.warning("No hay suficientes datos para calcular la correlación.")
+    except Exception as e:
+        st.error(f"Error en el análisis ENSO: {e}")
+
+# --- Contenido de la Pestaña de Descarga ---
+with tab5:
+    st.header("Opciones de Descarga 📥")
+    st.markdown("""
+    **Exportar a CSV:**
+    Para obtener los datos filtrados en formato CSV, haga clic en los botones de descarga a continuación.
+    """)
+    
+    st.markdown("**Datos de Precipitación Anual**")
+    csv_anual = df_precip_anual_filtered_melted.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Descargar datos anuales (CSV)",
+        data=csv_anual,
+        file_name='precipitacion_anual.csv',
+        mime='text/csv',
+    )
+    
+    st.markdown("**Datos de Precipitación Mensual**")
+    csv_mensual = df_monthly_filtered.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Descargar datos mensuales (CSV)",
+        data=csv_mensual,
+        file_name='precipitacion_mensual.csv',
+        mime='text/csv',
+    )
+    
+    st.markdown("---")
+    st.markdown("""
+    **Exportar a Imagen (PNG/SVG):**
+    Para descargar los **gráficos de Plotly** como imagen, simplemente pase el cursor sobre el gráfico y haga clic en el ícono de la cámara 📷 que aparece en la parte superior derecha. Para los **mapas de Folium**, use una captura de pantalla.
+
+    **Exportar a PDF:**
+    Para guardar una copia de toda la página (incluyendo todos los gráficos y tablas visibles) como un archivo PDF, utilice la función de su navegador:
+    1. Vaya al menú del navegador (usualmente en la esquina superior derecha).
+    2. Seleccione **"Imprimir..."**.
+    3. En el destino, elija **"Guardar como PDF"**.
+    """)
