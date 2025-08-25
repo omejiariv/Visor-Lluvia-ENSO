@@ -9,3 +9,4 @@ scipy
 numpy
 shapely
 streamlit_folium
+pandas==2.2.2
