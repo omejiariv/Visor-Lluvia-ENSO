@@ -1,6 +1,3 @@
-# Visor de Información Geoespacial de Precipitación y el Fenómeno ENSO
-# Creado para el análisis de datos climáticos y su correlación con eventos ENSO.
-
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -18,18 +15,6 @@ import re
 from datetime import datetime
 from shapely.geometry import Point
 import base64
-from pykrige.ok import OrdinaryKriging
-from pykrige.kriging_tools import write_asc_grid
-from scipy.interpolate import griddata
-
-# --- VERIFICACIÓN TEMPORAL DE LA VERSIÓN DE PLOTLY ---
-# Esto te ayudará a confirmar si la actualización en la nube funcionó
-try:
-    import plotly
-    st.write(f"Versión de Plotly instalada: **{plotly.__version__}**")
-except Exception as e:
-    st.write(f"No se pudo verificar la versión de Plotly: {e}")
-# ---------------------------------------------------
 
 # --- Manejo del error de importación de ScaleControl ---
 try:
@@ -324,16 +309,6 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
             (df_precip_anual_filtered_melted['Año'] <= year_range[1])
         ].copy() 
 
-        # --- Reconstrucción de datos faltantes (imputación) ---
-        mean_precip_by_station = df_precip_anual_filtered_melted.groupby('Nom_Est')['Precipitación'].transform('median')
-        df_precip_anual_filtered_melted['Precipitación'].fillna(mean_precip_by_station, inplace=True)
-        # Rellenar ceros con la media también, asumiendo que un cero es un dato faltante
-        df_precip_anual_filtered_melted['Precipitación'] = df_precip_anual_filtered_melted.apply(
-            lambda row: mean_precip_by_station[row.name] if row['Precipitación'] == 0 else row['Precipitación'],
-            axis=1
-        )
-
-
         if not df_precip_anual_filtered_melted.empty:
             selection_anual = alt.selection_point(fields=['Nom_Est'], bind='legend')
             chart_anual = alt.Chart(df_precip_anual_filtered_melted).mark_line().encode(
@@ -379,232 +354,126 @@ if df_precip_anual is not None and df_enso is not None and df_precip_mensual is 
     with tab2:
         st.header("Mapas de Lluvia y Precipitación")
         
-        tab_folium, tab_animado, tab_interp = st.tabs([
-            "Mapa de Estaciones", 
-            "Mapa Animado", 
-            "Superficie de Lluvia (Kriging)"
-        ])
+        st.subheader("Mapa de Estaciones de Lluvia en Colombia")
+        st.markdown("Ubicación de las estaciones seleccionadas.")
 
-        # Sub-pestaña: Mapa de Estaciones (Folium)
-        with tab_folium:
-            st.subheader("Mapa de Estaciones de Lluvia en Colombia")
-            st.markdown("Ubicación de las estaciones seleccionadas.")
+        gdf_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
 
-            gdf_filtered = gdf_stations[gdf_stations['Nom_Est'].isin(filtered_stations)].copy()
+        if not gdf_filtered.empty:
+            tab_auto, tab_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
 
-            if not gdf_filtered.empty:
-                tab_auto, tab_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
+            with tab_auto:
+                st.info("El mapa se centra y ajusta automáticamente a las estaciones seleccionadas.")
+                m_auto = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
+                bounds = gdf_filtered.total_bounds
+                m_auto.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+                ScaleControl().add_to(m_auto)
 
-                with tab_auto:
-                    st.info("El mapa se centra y ajusta automáticamente a las estaciones seleccionadas.")
-                    m_auto = folium.Map(location=[gdf_filtered['Latitud_geo'].mean(), gdf_filtered['Longitud_geo'].mean()], zoom_start=6)
-                    bounds = gdf_filtered.total_bounds
-                    m_auto.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-                    ScaleControl().add_to(m_auto)
-
-                    for _, row in gdf_filtered.iterrows():
-                        folium.Marker(
-                            location=[row['Latitud_geo'], row['Longitud_geo']],
-                            tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
-                            icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
-                        ).add_to(m_auto)
-                    folium_static(m_auto, width=900, height=600)
-                    
-                with tab_predef:
-                    st.info("Use los botones para centrar el mapa en ubicaciones predefinidas.")
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("Ver Colombia"):
-                            st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
-                    with col2:
-                        if st.button("Ver Antioquia"):
-                            st.session_state.map_view = {"location": [6.2442, -75.5812], "zoom": 8}
-                    with col3:
-                        if st.button("Ver Estaciones Seleccionadas"):
-                            bounds = gdf_filtered.total_bounds
-                            st.session_state.map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8} 
-
-                    if 'map_view' not in st.session_state:
-                        st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
-
-                    m_predef = folium.Map(location=st.session_state.map_view["location"], zoom_start=st.session_state.map_view["zoom"])
-                    ScaleControl().add_to(m_predef)
-
-                    for _, row in gdf_filtered.iterrows():
-                        folium.Marker(
-                            location=[row['Latitud_geo'], row['Longitud_geo']],
-                            tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
-                            icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
-                        ).add_to(m_predef)
-                    folium_static(m_predef, width=900, height=600)
-            else:
-                st.warning("No hay estaciones seleccionadas o datos de coordenadas para mostrar en el mapa.")
-
-        # Sub-pestaña: Mapa Animado (Plotly)
-        with tab_animado:
-            st.subheader("Mapa Animado de Precipitación Anual")
-            st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
-            if not df_precip_anual_filtered_melted.empty:
-                tab_anim_auto, tab_anim_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
+                for _, row in gdf_filtered.iterrows():
+                    folium.Marker(
+                        location=[row['Latitud_geo'], row['Longitud_geo']],
+                        tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
+                        icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
+                    ).add_to(m_auto)
+                folium_static(m_auto, width=900, height=600)
                 
-                with tab_anim_auto:
-                    fig_mapa_animado = px.scatter_geo(
-                        df_precip_anual_filtered_melted,
-                        lat='Latitud_geo',
-                        lon='Longitud_geo',
-                        color='Precipitación',
-                        size='Precipitación',
-                        hover_name='Nom_Est',
-                        animation_frame='Año',
-                        projection='natural earth',
-                        title='Precipitación Anual de las Estaciones',
-                        color_continuous_scale=px.colors.sequential.RdBu,
-                        width=1000,
-                        height=700
-                    )
-                    fig_mapa_animado.update_geos(fitbounds="locations", showcountries=True, countrycolor="black")
-                    st.plotly_chart(fig_mapa_animado, use_container_width=True)
+            with tab_predef:
+                st.info("Use los botones para centrar el mapa en ubicaciones predefinidas.")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("Ver Colombia"):
+                        st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+                with col2:
+                    if st.button("Ver Antioquia"):
+                        st.session_state.map_view = {"location": [6.2442, -75.5812], "zoom": 8}
+                with col3:
+                    if st.button("Ver Estaciones Seleccionadas"):
+                        bounds = gdf_filtered.total_bounds
+                        st.session_state.map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8} 
 
-                with tab_anim_predef:
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("Ver Colombia", key="anim_col"):
-                            st.session_state.anim_map_view = {"location": [4.5709, -74.2973], "zoom": 5}
-                    with col2:
-                        if st.button("Ver Antioquia", key="anim_ant"):
-                            st.session_state.anim_map_view = {"location": [6.2442, -75.5812], "zoom": 8}
-                    with col3:
-                        if st.button("Ver Estaciones Seleccionadas", key="anim_est"):
-                            bounds = gdf_filtered.total_bounds
-                            st.session_state.anim_map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8}
-                    
-                    if 'anim_map_view' not in st.session_state:
+                if 'map_view' not in st.session_state:
+                    st.session_state.map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+
+                m_predef = folium.Map(location=st.session_state.map_view["location"], zoom_start=st.session_state.map_view["zoom"])
+                ScaleControl().add_to(m_predef)
+
+                for _, row in gdf_filtered.iterrows():
+                    folium.Marker(
+                        location=[row['Latitud_geo'], row['Longitud_geo']],
+                        tooltip=f"Estación: {row['Nom_Est']}<br>Municipio: {row['municipio']}<br>Porc. Datos: {row['Porc_datos']}<br>Celda: {row['Celda_XY']}",
+                        icon=folium.Icon(color="blue", icon="cloud-rain", prefix='fa')
+                    ).add_to(m_predef)
+                folium_static(m_predef, width=900, height=600)
+        else:
+            st.warning("No hay estaciones seleccionadas o datos de coordenadas para mostrar en el mapa.")
+
+        st.markdown("---")
+        st.subheader("Mapa Animado de Precipitación Anual")
+        st.markdown("Visualice la precipitación anual a lo largo del tiempo.")
+        if not df_precip_anual_filtered_melted.empty:
+            tab_anim_auto, tab_anim_predef = st.tabs(["Centrado Automático", "Centrado Predefinido"])
+            
+            with tab_anim_auto:
+                fig_mapa_animado = px.scatter_geo(
+                    df_precip_anual_filtered_melted,
+                    lat='Latitud_geo',
+                    lon='Longitud_geo',
+                    color='Precipitación',
+                    size='Precipitación',
+                    hover_name='Nom_Est',
+                    animation_frame='Año',
+                    projection='natural earth',
+                    title='Precipitación Anual de las Estaciones',
+                    color_continuous_scale=px.colors.sequential.RdBu,
+                    width=1000,
+                    height=700
+                )
+                fig_mapa_animado.update_geos(fitbounds="locations", showcountries=True, countrycolor="black")
+                st.plotly_chart(fig_mapa_animado, use_container_width=True)
+
+            with tab_anim_predef:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("Ver Colombia", key="anim_col"):
                         st.session_state.anim_map_view = {"location": [4.5709, -74.2973], "zoom": 5}
+                with col2:
+                    if st.button("Ver Antioquia", key="anim_ant"):
+                        st.session_state.anim_map_view = {"location": [6.2442, -75.5812], "zoom": 8}
+                with col3:
+                    if st.button("Ver Estaciones Seleccionadas", key="anim_est"):
+                        bounds = gdf_filtered.total_bounds
+                        st.session_state.anim_map_view = {"location": [(bounds[1]+bounds[3])/2, (bounds[0]+bounds[2])/2], "zoom": 8}
+                
+                if 'anim_map_view' not in st.session_state:
+                    st.session_state.anim_map_view = {"location": [4.5709, -74.2973], "zoom": 5}
 
-                    fig_mapa_animado_predef = px.scatter_geo(
-                        df_precip_anual_filtered_melted,
-                        lat='Latitud_geo',
-                        lon='Longitud_geo',
-                        color='Precipitación',
-                        size='Precipitación',
-                        hover_name='Nom_Est',
-                        animation_frame='Año',
-                        projection='natural earth',
-                        title='Precipitación Anual de las Estaciones',
-                        color_continuous_scale=px.colors.sequential.RdBu,
-                        width=1000,
-                        height=700
+                fig_mapa_animado_predef = px.scatter_geo(
+                    df_precip_anual_filtered_melted,
+                    lat='Latitud_geo',
+                    lon='Longitud_geo',
+                    color='Precipitación',
+                    size='Precipitación',
+                    hover_name='Nom_Est',
+                    animation_frame='Año',
+                    projection='natural earth',
+                    title='Precipitación Anual de las Estaciones',
+                    color_continuous_scale=px.colors.sequential.RdBu,
+                    width=1000,
+                    height=700
+                )
+                fig_mapa_animado_predef.update_layout(
+                    geo = dict(
+                        center = dict(
+                            lat=st.session_state.anim_map_view['location'][0], 
+                            lon=st.session_state.anim_map_view['location'][1]
+                        ),
+                        projection_scale=st.session_state.anim_map_view['zoom'],
+                        showcountries=True, countrycolor="black"
                     )
-                    fig_mapa_animado_predef.update_layout(
-                        geo = dict(
-                            center = dict(
-                                lat=st.session_state.anim_map_view['location'][0], 
-                                lon=st.session_state.anim_map_view['location'][1]
-                            ),
-                            projection_scale=st.session_state.anim_map_view['zoom'],
-                            showcountries=True, countrycolor="black"
-                        )
-                    )
-                    st.plotly_chart(fig_mapa_animado_predef, use_container_width=True)
-            else:
-                st.warning("No hay datos suficientes para generar el mapa animado.")
-
-        # Sub-pestaña: Mapa de Interpolación
-        with tab_interp:
-            st.subheader("Superficie de Precipitación Anual por Kriging")
-            st.markdown("Mapa base con la superficie de lluvia interpolada a partir de la precipitación media anual.")
-
-            if not df_precip_anual_filtered_melted.empty:
-                # Calcular la precipitación media anual para cada estación
-                df_mean_precip = df_precip_anual_filtered_melted.groupby('Nom_Est')[['Longitud_geo', 'Latitud_geo', 'Precipitación']].mean().reset_index()
-
-                # Definir la grilla de interpolación
-                longs = np.unique(df_mean_precip['Longitud_geo'])
-                lats = np.unique(df_mean_precip['Latitud_geo'])
-
-                if len(longs) < 2 or len(lats) < 2:
-                    st.warning("No hay suficientes estaciones seleccionadas para generar una superficie de interpolación. Seleccione al menos dos estaciones con diferentes longitudes y latitudes.")
-                else:
-                    lon_grid = np.linspace(min(longs), max(longs), 100)
-                    lat_grid = np.linspace(min(lats), max(lats), 100)
-
-                    z_grid = None
-                    interpolation_method = "Kriging"
-                    
-                    try:
-                        OK = OrdinaryKriging(
-                            df_mean_precip['Longitud_geo'].values,
-                            df_mean_precip['Latitud_geo'].values,
-                            df_mean_precip['Precipitación'].values,
-                            variogram_model='linear',
-                            verbose=False,
-                            enable_plotting=False
-                        )
-                        z_grid, ss_grid = OK.execute("grid", lon_grid, lat_grid)
-                        z_grid = z_grid.data
-                        
-                        if np.isnan(z_grid).all() or z_grid.size == 0:
-                            raise ValueError("Kriging no pudo generar una grilla válida. Intentando con un método alternativo.")
-
-                    except Exception as e:
-                        st.warning(f"Kriging no pudo generar una superficie de interpolación válida: {e}. Usando un método de interpolación más simple como respaldo.")
-                        interpolation_method = "Griddata (Fallback)"
-                        
-                        points = df_mean_precip[['Longitud_geo', 'Latitud_geo']].values
-                        values = df_mean_precip['Precipitación'].values
-                        grid_x, grid_y = np.meshgrid(lon_grid, lat_grid)
-                        
-                        z_grid = griddata(points, values, (grid_x, grid_y), method='linear')
-                    
-                    if z_grid is not None and not np.isnan(z_grid).all() and z_grid.size > 0:
-                        fig_interp = go.Figure(data=go.Contourgeo(
-                            lon=lon_grid,
-                            lat=lat_grid,
-                            z=z_grid.T, # <--- La transposición sigue siendo necesaria
-                            colorscale='YlGnBu',
-                            colorbar_title="Precipitación (mm)",
-                            contours_showlabels=True,
-                            zmin=z_grid.min(),
-                            zmax=z_grid.max(),
-                        ))
-
-                        fig_interp.add_trace(go.Scattergeo(
-                            lat=df_mean_precip['Latitud_geo'],
-                            lon=df_mean_precip['Longitud_geo'],
-                            mode='markers',
-                            marker=dict(
-                                size=10,
-                                color='black',
-                                symbol='circle',
-                                line=dict(width=1, color='white')
-                            ),
-                            hoverinfo='text',
-                            hovertext=df_mean_precip['Nom_Est'] + '<br>Pptn. Anual: ' + df_mean_precip['Precipitación'].round(2).astype(str),
-                            name='Estaciones de Lluvia'
-                        ))
-
-                        center_lat = (max(lats) + min(lats)) / 2
-                        center_lon = (max(longs) + min(longs)) / 2
-                        zoom_factor = 10 
-
-                        fig_interp.update_layout(
-                            title_text=f'Superficie de Precipitación Media Anual ({interpolation_method})',
-                            geo=dict(
-                                scope='south america',
-                                showland=True,
-                                landcolor='rgb(217, 217, 217)',
-                                countrycolor='rgb(204, 204, 204)',
-                                showcountries=True,
-                                center=dict(lat=center_lat, lon=center_lon),
-                                projection_scale=zoom_factor
-                            )
-                        )
-                        st.plotly_chart(fig_interp, use_container_width=True)
-                    else:
-                        st.warning("La grilla de interpolación generada no es válida. Por favor, intente con una selección de estaciones diferente.")
-            else:
-                st.warning("No hay datos suficientes para generar el mapa de interpolación.")
-
+                )
+                st.plotly_chart(fig_mapa_animado_predef, use_container_width=True)
+        else:
+            st.warning("No hay datos suficientes para generar el mapa animado.")
 
     # --- Contenido de la Pestaña de Tablas ---
     with tab3:
