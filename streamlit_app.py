@@ -1,3 +1,6 @@
+# Visor de Información Geoespacial de Precipitación y el Fenómeno ENSO
+# Creado para el análisis de datos climáticos y su correlación con eventos ENSO.
+
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -18,6 +21,15 @@ import base64
 from pykrige.ok import OrdinaryKriging
 from pykrige.kriging_tools import write_asc_grid
 from scipy.interpolate import griddata
+
+# --- VERIFICACIÓN TEMPORAL DE LA VERSIÓN DE PLOTLY ---
+# Esto te ayudará a confirmar si la actualización en la nube funcionó
+try:
+    import plotly
+    st.write(f"Versión de Plotly instalada: **{plotly.__version__}**")
+except Exception as e:
+    st.write(f"No se pudo verificar la versión de Plotly: {e}")
+# ---------------------------------------------------
 
 # --- Manejo del error de importación de ScaleControl ---
 try:
